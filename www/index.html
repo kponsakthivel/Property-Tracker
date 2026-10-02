@@ -116,6 +116,30 @@ function saveP(){const v=i=>$(i).value.trim(),n=Math.max(0,...db.props.map(p=>+p
  const p={id:"P"+String(n).padStart(4,"0"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:+v("area")||"",unit:$("unit").value,len:+v("len")||"",wid:+v("wid")||"",road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:+v("pr")||"",punit:$("pu").value,notes:v("nt"),photos:draft.photos,status:"Visited",created:now(),visits:[],history:[{at:now(),from:"",to:"Visited",note:"Created"}],rating:""};
  if(!p.area&&p.len&&p.wid&&p.unit=="Sq.ft")p.area=p.len*p.wid;
  db.props.push(p);save();sync="Synced";closeS()}
+function editP(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.lat,lng:p.lng};
+ const typOpts=["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option ${p.type==t?"selected":""}>${t}</option>`).join("");
+ const unitOpts=Object.keys(U).map(u=>`<option ${p.unit==u?"selected":""}>${u}</option>`).join("");
+ const faceOpts=["North","South","East","West","North East","North West","South East","South West"].map(t=>`<option ${p.facing==t?"selected":""}>${t}</option>`).join("");
+ const puOpts=["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"].map(t=>`<option ${p.punit==t?"selected":""}>${t}</option>`).join("");
+ const photoPreview=p.photos.map(x=>`<img src="${x.d}">`).join("");
+ sheet(`<button class="btn" onclick="detail('${id}')">← Back</button><h1>Edit ${p.id}</h1>
+ <div class="card"><div id="gps" class="mut">Coordinates: ${p.lat||"—"}, ${p.lng||"—"}</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" value="${esc(p.lat)}"></div><div><label>Longitude</label><input id="lng" type="number" step="any" value="${esc(p.lng)}"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
+ <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${typOpts}</select>
+ <label>Locality / village</label><input id="loc" value="${esc(p.locality)}"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2">${photoPreview}</div>
+ <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal" value="${esc(p.area)}"></div><div><label>Unit</label><select id="unit">${unitOpts}</select></div></div>
+ <div class="row"><div><label>Length</label><input id="len" type="number" inputmode="decimal" value="${esc(p.len)}"></div><div><label>Width</label><input id="wid" type="number" inputmode="decimal" value="${esc(p.wid)}"></div><div><label>Road width</label><input id="road" type="number" inputmode="decimal" value="${esc(p.road)}"></div></div>
+ <label>Facing</label><select id="face"><option value="">—</option>${faceOpts}</select>
+ <div class="row"><div><label>Owner</label><input id="own" value="${esc(p.owner)}"></div><div><label>Phone</label><input id="tel" type="tel" value="${esc(p.phone)}"></div></div>
+ <div class="row"><div><label>Expected price</label><input id="pr" type="number" inputmode="decimal" value="${esc(p.price)}"></div><div><label>Price unit</label><select id="pu">${puOpts}</select></div></div>
+ <label>Notes</label><textarea id="nt" rows="3">${esc(p.notes)}</textarea></div>
+ <div class="row" style="margin-top:12px"><button class="btn" onclick="detail('${id}')">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">SAVE CHANGES</button></div>`)}
+function saveEdit(id){const p=P(id);if(!p)return;const v=i=>$(i).value.trim();
+ p.type=v("type");p.locality=v("loc");p.lat=v("lat");p.lng=v("lng");
+ p.area=+v("area")||"";p.unit=$("unit").value;p.len=+v("len")||"";p.wid=+v("wid")||"";
+ p.road=v("road");p.facing=$("face").value;p.owner=v("own");p.phone=v("tel");
+ p.price=+v("pr")||"";p.punit=$("pu").value;p.notes=v("nt");p.photos=draft.photos;
+ if(!p.area&&p.len&&p.wid&&p.unit=="Sq.ft")p.area=p.len*p.wid;
+ save();detail(id);}
 function detail(id){const p=P(id);if(!p)return;
  sheet(`<button class="btn" onclick="closeS()">← Back</button><h1>${p.id} ${pill(p.status)}</h1><div class="mut">${esc(p.locality)} · ${esc(p.type)} · added ${dt(p.created)}</div>
  <div class="ph2" style="margin:10px 0">${p.photos.map(x=>`<img src="${x.d}">`).join("")}</div>
@@ -126,7 +150,7 @@ function detail(id){const p=P(id);if(!p)return;
  <div class="mut">${p.history.map(h=>`${dt(h.at)}: ${h.from||"—"} → ${h.to} ${esc(h.note||"")}`).join("<br>")}</div>
  <h2>Visits (${p.visits.length})</h2><textarea id="vn" rows="2" placeholder="What was discussed, new price, follow-up…"></textarea><button class="btn" onclick="visit('${id}')">Log new visit</button>
  <div class="mut" style="margin-top:8px">${p.visits.map(v=>`<b>${dt(v.at)}</b> ${esc(v.note)}`).join("<br>")}</div>
- <h2></h2><button class="btn d" onclick="if(confirm('Delete ${id}?')){db.props=db.props.filter(x=>x.id!='${id}');save();closeS()}">Delete property</button>`)}
+ <h2></h2><div class="row wrap"><button class="btn" onclick="editP('${id}')">✏️ Edit Details</button><button class="btn d" onclick="if(confirm('Delete ${id}?')){db.props=db.props.filter(x=>x.id!='${id}');save();closeS()}">Delete property</button></div>`)}
 function setS(id){const p=P(id),to=$("ns").value;if(to!=p.status){p.history.push({at:now(),from:p.status,to,note:$("sn").value});p.status=to;save()}detail(id)}
 function visit(id){const n=$("vn").value.trim();if(!n)return;P(id).visits.push({at:now(),note:n});save();detail(id)}
 function share(id){const p=P(id),t=`${p.id} · ${p.locality} ${p.type}\n${p.area||"—"} ${p.unit}, ${p.len||"—"}×${p.wid||"—"}, road ${p.road||"—"}, ${p.facing||"—"} facing\nPrice ${inr(total(p))} · ${p.status}\n${p.lat?gm(p):""}\n${p.notes||""}`;navigator.share?navigator.share({text:t}).catch(()=>{}):navigator.clipboard?.writeText(t).then(()=>alert("Summary copied (owner details excluded)"))}
