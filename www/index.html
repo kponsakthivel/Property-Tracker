@@ -6,6 +6,8 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f5f2;--card:#fff;--ink:#1d2320;--mut:#6b746f;--line:#e4e2dc;--ac:#1f6f50;--acf:#fff}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121513;--card:#1b201d;--ink:#eef1ee;--mut:#9aa59f;--line:#2a312d;--ac:#4cc38a;--acf:#06130c}}
 :root[data-theme="dark"]{--bg:#121513;--card:#1b201d;--ink:#eef1ee;--mut:#9aa59f;--line:#2a312d;--ac:#4cc38a;--acf:#06130c}
+@media(prefers-color-scheme:dark){html:not([data-theme="light"]) .leaflet-layer{filter:invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)}}
+html[data-theme="dark"] .leaflet-layer{filter:invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)}
 html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}*{box-sizing:border-box}
 body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 #app{display:flex;min-height:100%}
@@ -34,6 +36,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px
 nav button{flex-direction:row;font-size:14px;gap:10px;padding:12px;justify-content:flex-start}.grid{grid-template-columns:repeat(5,1fr)}#app{flex-direction:row-reverse}main{padding-bottom:40px}.fab{bottom:24px}}
 </style></head><body><div id="app"><main id="m"></main><nav id="nav"></nav></div><div id="sh"></div>
 <script>
+const thm=localStorage.getItem("theme")||"auto";if(thm!=="auto")document.documentElement.setAttribute("data-theme",thm);
 const ST=["New","Visited","Shortlisted","Follow-up","Negotiating","Revisit Required","Document Verification","Final Discussion","Purchased","Rejected","On Hold"];
 const SC={New:[210,10],Visited:[210,60],Shortlisted:[45,90],"Follow-up":[280,50],Negotiating:[25,85],"Revisit Required":[330,60],"Document Verification":[190,70],"Final Discussion":[260,50],Purchased:[145,60],Rejected:[0,70],"On Hold":[0,0]};
 const SI={New:"○",Visited:"●",Shortlisted:"★",Purchased:"✔",Rejected:"✖",Negotiating:"₹","On Hold":"⏸"};
@@ -86,9 +89,10 @@ function rem(){const rs=[...db.rem].sort((a,b)=>a.due.localeCompare(b.due));
  ${rs.map(r=>`<div class="card" style="margin-bottom:8px;opacity:${r.done?.5:1}"><label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" style="width:22px;margin:0" ${r.done?"checked":""} onchange="db.rem.find(x=>x.k==${r.k}).done=this.checked;save();render()"> ${esc(r.t)}</label><div class="mut">${dt(r.due)} ${r.p?"· "+r.p:""} ${!r.done&&new Date(r.due)<new Date()?"· <b style='color:#c0392b'>Overdue</b>":""}</div></div>`).join("")||'<div class="mut">None yet.</div>'}`}
 function addRem(){const t=$("rt").value.trim(),d=$("rd").value;if(!t||!d)return alert("Enter text and date");db.rem.push({k:Date.now(),t,due:new Date(d).toISOString(),p:$("rp").value,done:false});save();render();try{Notification.requestPermission()}catch(e){}}
 setInterval(()=>{try{db.rem.filter(r=>!r.done&&!r.n&&new Date(r.due)<=new Date()).forEach(r=>{r.n=1;save();if(Notification.permission=="granted")new Notification("Reminder",{body:r.t})})}catch(e){}},30000);
-function more(){return `<h1>More</h1><div class="card"><b>Data & sync</b><p class="mut">Status: <b>${sync}</b> — all data is saved on this device instantly and works offline. Cloud account sync needs a backend, which this standalone page doesn't include.</p>
+function more(){const thm=localStorage.getItem("theme")||"auto";return `<h1>More</h1><h2>Appearance</h2><div class="row wrap" style="margin-bottom:14px"><button class="btn ${thm=='light'?'p':''}" onclick="setTheme('light')">☀️ Light</button><button class="btn ${thm=='dark'?'p':''}" onclick="setTheme('dark')">🌙 Dark</button><button class="btn ${thm=='auto'?'p':''}" onclick="setTheme('auto')">⚙️ System</button></div><div class="card"><b>Data & sync</b><p class="mut">Status: <b>${sync}</b> — all data is saved on this device instantly and works offline. Cloud account sync needs a backend, which this standalone page doesn't include.</p>
  <div class="row wrap"><button class="btn" onclick="csv()">Export CSV (Excel)</button><button class="btn" onclick="bak()">Backup JSON</button><label class="btn">Restore<input type="file" accept=".json" hidden onchange="rest(this)"></label></div></div>
  <h2>Status colour key</h2><div class="card">${ST.map(pill).join(" ")}</div>`}
+function setTheme(t){localStorage.setItem("theme",t);if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t);render()}
 function dl(n,t,m){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()}
 function csv(){const h=["ID","Name","Type","Locality","District","Status","Area","Unit","Length","Width","RoadWidth","Facing","Owner","Phone","Price","PriceUnit","TotalPrice","PerCent","PerSqft","Lat","Lng","Map","Notes"];
  const r=db.props.map(p=>[p.id,p.name,p.type,p.locality,p.district,p.status,p.area,p.unit,p.len,p.wid,p.road,p.facing,p.owner,p.phone,p.price,p.punit,Math.round(total(p)),Math.round(pc(p)),Math.round(psf(p)),p.lat,p.lng,gm(p),p.notes]);
