@@ -1,5 +1,7 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Site Visit Tracker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f5f2;--card:#fff;--ink:#1d2320;--mut:#6b746f;--line:#e4e2dc;--ac:#1f6f50;--acf:#fff}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121513;--card:#1b201d;--ink:#eef1ee;--mut:#9aa59f;--line:#2a312d;--ac:#4cc38a;--acf:#06130c}}
@@ -38,7 +40,7 @@ const SI={New:"○",Visited:"●",Shortlisted:"★",Purchased:"✔",Rejected:"�
 const col=s=>{const c=SC[s]||[0,0];return `hsl(${c[0]} ${c[1]}% 38%)`};
 const pill=s=>`<span class="pill" style="--c:${col(s)}">${SI[s]||"•"} ${s}</span>`;
 const U={"Sq.ft":1,Cent:435.6,Acre:43560,Ground:2400,"Sq.m":10.764};
-let db={props:[],rem:[]},view="home",flt="",q="",cmp=[],sync="Synced";
+let db={props:[],rem:[]},view="home",flt="",q="",mq="",cmp=[],sync="Synced";
 try{db=JSON.parse(localStorage.getItem("stt")||"")||db}catch(e){}
 function save(){try{localStorage.setItem("stt",JSON.stringify(db))}catch(e){alert("Storage full — delete some photos or export a backup.")}}
 const $=id=>document.getElementById(id),P=id=>db.props.find(p=>p.id==id);
@@ -54,6 +56,7 @@ function nav(v){view=v;flt="";render()}
 function render(){
  $("nav").innerHTML=[["home","⌂","Home"],["list","☰","Properties"],["map","⌖","Map"],["rem","⏰","Reminders"],["more","⋯","More"]].map(([v,i,t])=>`<button class="${view==v?"on":""}" onclick="nav('${v}')"><b>${i}</b>${t}</button>`).join("");
  $("m").innerHTML=({home,list,map,rem,more})[view]()+`<button class="fab" onclick="edit()">+ ADD PROPERTY</button>`;
+ if(view=='map')setTimeout(initMap,0);
 }
 function home(){const t=new Date(),wk=new Date(Date.now()-6048e5),c=f=>db.props.filter(f).length,s=x=>c(p=>p.status==x);
  const due=db.rem.filter(r=>!r.done&&new Date(r.due)<=new Date(Date.now()+864e5)).length;
@@ -74,10 +77,9 @@ function near(){navigator.geolocation?.getCurrentPosition(g=>{const d=p=>hav(g.c
 function hav(a,b,c,d){if(c==null||c==="")return 1e9;const r=x=>x*Math.PI/180,h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 12742*Math.asin(Math.sqrt(h))}
 function map(){const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null);
  if(!ps.length)return `<h1>Map</h1><div class="card mut">No located properties yet.</div>`;
- const la=ps.map(p=>+p.lat),lo=ps.map(p=>+p.lng),a=Math.min(...la),b=Math.max(...la),c=Math.min(...lo),d=Math.max(...lo),W=700,H=460,x=v=>40+(d==c?.5:(v-c)/(d-c))*(W-80),y=v=>H-40-(b==a?.5:(v-a)/(b-a))*(H-80);
- const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><button class="btn" onclick="flt='';render()">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn" onclick="flt='${s}';render()">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div>
- <div class="card"><svg viewBox="0 0 ${W} ${H}" width="100%" style="background:var(--bg);border-radius:10px">${ps.filter(p=>!f||p.status==f).map(p=>`<g onclick="detail('${p.id}')" style="cursor:pointer"><circle cx="${x(p.lng)}" cy="${y(p.lat)}" r="15" fill="${col(p.status)}"/><text x="${x(p.lng)}" y="${y(p.lat)+4}" text-anchor="middle" style="fill:#fff;font-weight:700">${SI[p.status]||"•"}</text><text x="${x(p.lng)}" y="${y(p.lat)+30}" text-anchor="middle">${p.id}</text></g>`).join("")}</svg>
- <div class="mut">Relative layout of saved pins (works offline). Tap a pin for details and “Open in Google Maps”.</div></div>`}
+ const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><input placeholder="Search pins..." value="${esc(mq)}" oninput="mq=this.value; updateMap()"></div><div class="row wrap" style="margin-bottom:8px"><button class="btn ${!f?'p':''}" onclick="flt='';render()">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn ${f==s?'p':''}" onclick="flt='${s}';render()">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div><div class="card" style="padding:0; overflow:hidden"><div id="lmap" style="height:60vh; z-index:1;"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
+function initMap(){const m=$("lmap");if(!m)return;if(window.lmap){window.lmap.remove();window.lmap=null}window.lmap=L.map('lmap');L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(window.lmap);updateMap(true)}
+function updateMap(fit){if(!window.lmap)return;if(window.lmarkers)window.lmap.removeLayer(window.lmarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&(!mq||JSON.stringify([p.id,p.name,p.locality,p.type]).toLowerCase().includes(mq.toLowerCase())));window.lmarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:c,fillColor:c,fillOpacity:0.8,radius:10}).bindTooltip(`<b>${p.id}</b> ${SI[p.status]}<br>${esc(p.name||"")}`);m.on('click',()=>detail(p.id));return m})).addTo(window.lmap);if(fit&&ps.length)window.lmap.fitBounds(window.lmarkers.getBounds(),{padding:[20,20]})}
 function me(){navigator.geolocation?.getCurrentPosition(g=>window.open(`https://www.google.com/maps?q=${g.coords.latitude},${g.coords.longitude}`),()=>alert("Location unavailable"))}
 function rem(){const rs=[...db.rem].sort((a,b)=>a.due.localeCompare(b.due));
  return `<h1>Reminders</h1><div class="card"><label>Reminder</label><input id="rt" placeholder="Call owner, check EC…"><div class="row"><div><label>Due</label><input id="rd" type="datetime-local"></div><div><label>Property</label><select id="rp"><option value="">—</option>${db.props.map(p=>`<option>${p.id}</option>`).join("")}</select></div></div><button class="btn p" onclick="addRem()">Add reminder</button></div><h2>Upcoming</h2>
@@ -102,7 +104,7 @@ let draft;
 function edit(){draft={photos:[],lat:"",lng:""};
  sheet(`<h1>Quick add</h1><div class="card"><div id="gps" class="mut">Getting GPS…</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any"></div><div><label>Longitude</label><input id="lng" type="number" step="any"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
  <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option>${t}</option>`).join("")}</select>
- <label>Locality / village</label><input id="loc"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2"></div>
+ <label>Site Title / Name</label><input id="stitle" placeholder="e.g. Anna Nagar Corner Plot"><label>Locality / village</label><input id="loc"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2"></div>
  <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal"></div><div><label>Unit</label><select id="unit">${Object.keys(U).map(u=>`<option>${u}</option>`).join("")}</select></div></div>
  <div class="row"><div><label>Length</label><input id="len" type="number" inputmode="decimal"></div><div><label>Width</label><input id="wid" type="number" inputmode="decimal"></div><div><label>Road width</label><input id="road" type="number" inputmode="decimal"></div></div>
  <label>Facing</label><select id="face"><option value="">—</option>${["North","South","East","West","North East","North West","South East","South West"].map(t=>`<option>${t}</option>`).join("")}</select>
@@ -113,7 +115,7 @@ function edit(){draft={photos:[],lat:"",lng:""};
 function gps(){const g=$("gps");navigator.geolocation?navigator.geolocation.getCurrentPosition(r=>{$("lat").value=r.coords.latitude.toFixed(6);$("lng").value=r.coords.longitude.toFixed(6);g.textContent="GPS captured ±"+Math.round(r.coords.accuracy)+" m · "+dt(now())},()=>g.textContent="GPS unavailable — type coordinates manually",{enableHighAccuracy:true,timeout:10000}):g.textContent="GPS not supported"}
 function photos(i){[...i.files].forEach(f=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);const d=c.toDataURL("image/jpeg",.6);draft.photos.push({d,at:f.lastModified?new Date(f.lastModified).toISOString():now()});$("pv").innerHTML+=`<img src="${d}">`};im.src=u})}
 function saveP(){const v=i=>$(i).value.trim(),n=Math.max(0,...db.props.map(p=>+p.id.slice(1)))+1;
- const p={id:"P"+String(n).padStart(4,"0"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:+v("area")||"",unit:$("unit").value,len:+v("len")||"",wid:+v("wid")||"",road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:+v("pr")||"",punit:$("pu").value,notes:v("nt"),photos:draft.photos,status:"Visited",created:now(),visits:[],history:[{at:now(),from:"",to:"Visited",note:"Created"}],rating:""};
+ const p={id:"P"+String(n).padStart(4,"0"),name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:+v("area")||"",unit:$("unit").value,len:+v("len")||"",wid:+v("wid")||"",road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:+v("pr")||"",punit:$("pu").value,notes:v("nt"),photos:draft.photos,status:"Visited",created:now(),visits:[],history:[{at:now(),from:"",to:"Visited",note:"Created"}],rating:""};
  if(!p.area&&p.len&&p.wid&&p.unit=="Sq.ft")p.area=p.len*p.wid;
  db.props.push(p);save();sync="Synced";closeS()}
 function editP(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.lat,lng:p.lng};
@@ -125,7 +127,7 @@ function editP(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.
  sheet(`<button class="btn" onclick="detail('${id}')">← Back</button><h1>Edit ${p.id}</h1>
  <div class="card"><div id="gps" class="mut">Coordinates: ${p.lat||"—"}, ${p.lng||"—"}</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" value="${esc(p.lat)}"></div><div><label>Longitude</label><input id="lng" type="number" step="any" value="${esc(p.lng)}"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
  <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${typOpts}</select>
- <label>Locality / village</label><input id="loc" value="${esc(p.locality)}"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2">${photoPreview}</div>
+ <label>Site Title / Name</label><input id="stitle" value="${esc(p.name||'')}"><label>Locality / village</label><input id="loc" value="${esc(p.locality)}"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2">${photoPreview}</div>
  <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal" value="${esc(p.area)}"></div><div><label>Unit</label><select id="unit">${unitOpts}</select></div></div>
  <div class="row"><div><label>Length</label><input id="len" type="number" inputmode="decimal" value="${esc(p.len)}"></div><div><label>Width</label><input id="wid" type="number" inputmode="decimal" value="${esc(p.wid)}"></div><div><label>Road width</label><input id="road" type="number" inputmode="decimal" value="${esc(p.road)}"></div></div>
  <label>Facing</label><select id="face"><option value="">—</option>${faceOpts}</select>
@@ -134,7 +136,7 @@ function editP(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.
  <label>Notes</label><textarea id="nt" rows="3">${esc(p.notes)}</textarea></div>
  <div class="row" style="margin-top:12px"><button class="btn" onclick="detail('${id}')">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">SAVE CHANGES</button></div>`)}
 function saveEdit(id){const p=P(id);if(!p)return;const v=i=>$(i).value.trim();
- p.type=v("type");p.locality=v("loc");p.lat=v("lat");p.lng=v("lng");
+ p.name=v("stitle");p.type=v("type");p.locality=v("loc");p.lat=v("lat");p.lng=v("lng");
  p.area=+v("area")||"";p.unit=$("unit").value;p.len=+v("len")||"";p.wid=+v("wid")||"";
  p.road=v("road");p.facing=$("face").value;p.owner=v("own");p.phone=v("tel");
  p.price=+v("pr")||"";p.punit=$("pu").value;p.notes=v("nt");p.photos=draft.photos;
@@ -143,7 +145,7 @@ function saveEdit(id){const p=P(id);if(!p)return;const v=i=>$(i).value.trim();
 function detail(id){const p=P(id);if(!p)return;
  sheet(`<button class="btn" onclick="closeS()">← Back</button><h1>${p.id} ${pill(p.status)}</h1><div class="mut">${esc(p.locality)} · ${esc(p.type)} · added ${dt(p.created)}</div>
  <div class="ph2" style="margin:10px 0">${p.photos.map(x=>`<img src="${x.d}">`).join("")}</div>
- <div class="row wrap" style="margin-bottom:10px">${p.lat?`<a class="btn" href="${gm(p)}" target="_blank">Open in Maps</a><a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank">Navigate</a>`:""}<button class="btn" onclick="navigator.clipboard?.writeText(gm(P('${id}')))">Copy location</button><button class="btn" onclick="share('${id}')">Share</button>${p.phone?`<a class="btn" href="tel:${esc(p.phone)}">Call</a><a class="btn" href="https://wa.me/${esc(p.phone.replace(/\D/g,""))}" target="_blank">WhatsApp</a>`:""}</div>
+ <div class="row wrap" style="margin-bottom:10px">${p.lat?`<button class="btn" onclick="window.open('${gm(p)}', '_blank')">Open in Maps</button><button class="btn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}', '_blank')">Navigate</button>`:""}<button class="btn" onclick="navigator.clipboard?.writeText(gm(P('${id}')))">Copy location</button><button class="btn" onclick="share('${id}')">Share</button>${p.phone?`<button class="btn" onclick="window.location.href='tel:${esc(p.phone)}'">Call</button><button class="btn" onclick="window.open('https://wa.me/${esc(p.phone.replace(/\D/g,""))}', '_blank')">WhatsApp</button>`:""}</div>
  <div class="card"><table><tr><td>Area</td><td>${p.area||"—"} ${p.unit} (${Math.round(sqft(p))} sq.ft)</td></tr><tr><td>Size</td><td>${p.len||"—"} × ${p.wid||"—"} · road ${p.road||"—"} · ${p.facing||"—"}</td></tr><tr><td>Price</td><td>${p.price||"—"} ${p.punit} → <b>${inr(total(p))}</b></td></tr><tr><td>Per cent / sq.ft</td><td>${inr(pc(p))} / ${inr(psf(p))}</td></tr><tr><td>Owner</td><td>${esc(p.owner)} ${esc(p.phone)}</td></tr><tr><td>Notes</td><td>${esc(p.notes)}</td></tr></table></div>
  <h2>Negotiated price & rating</h2><div class="row"><input id="neg" type="number" placeholder="Negotiated total ₹" value="${p.neg||""}"><select id="rt2"><option value="">Rating</option>${[1,2,3,4,5].map(n=>`<option ${p.rating==n?"selected":""}>${n}</option>`).join("")}</select><button class="btn" onclick="P('${id}').neg=$('neg').value;P('${id}').rating=$('rt2').value;save();detail('${id}')">Save</button></div>
  <h2>Change status</h2><div class="row"><select id="ns">${ST.map(s=>`<option ${s==p.status?"selected":""}>${s}</option>`).join("")}</select><input id="sn" placeholder="Note"><button class="btn p" onclick="setS('${id}')">Update</button></div>
