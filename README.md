@@ -1,4 +1,4 @@
-# Site Tracker
+# Property Tracker
 
 A simple Android app to track property and land site visits.
 
