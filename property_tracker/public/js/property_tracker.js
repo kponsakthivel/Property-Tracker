@@ -295,11 +295,28 @@ async function remDone(k,d){const r=await api("set_reminder_done",{name:k,done:d
 const shown=new Set();
 setInterval(()=>{try{if(LN()||alertsOn||!("Notification" in window)||Notification.permission!="granted")return; // page-open fallback when push is off
  db.rem.filter(r=>!r.done&&!shown.has(r.k)&&new Date(r.due)<=new Date()&&new Date(r.due)>new Date(Date.now()-864e5)).forEach(r=>{shown.add(r.k);swReg().then(reg=>reg?reg.showNotification("⏰ Reminder",{body:r.t,tag:r.k,data:{url:remUrl(r)}}):new Notification("⏰ Reminder",{body:r.t,tag:r.k}))})}catch(e){}},30000);
+// ---- install as an app (PWA) -----------------------------------------------------
+let installPrompt=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installPrompt=e;if(view=="more"&&!st().s)render()});
+window.addEventListener("appinstalled",()=>{installPrompt=null;toast("Property Tracker is installed");if(view=="more"&&!st().s)render()});
+const isInstalled=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true||!!LN();
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent);
+async function installApp(){if(!installPrompt)return;installPrompt.prompt();const r=await installPrompt.userChoice.catch(()=>({}));installPrompt=null;if(r.outcome!="accepted")toast("Install cancelled");render()}
+function installCard(){if(isInstalled())return "";
+ let body;
+ if(installPrompt)body=`<div>Install Property Tracker on this device. It opens full screen with its own icon, like a regular app.</div><button class="btn p" style="margin-top:10px;width:100%" onclick="installApp()">${ic("download",18)} Install app</button>`;
+ else if(!window.isSecureContext)body=`<div>Installing needs a secure page. This one is opened over <b>http://${esc(location.host)}</b>, so the browser only offers a shortcut.</div>
+  <ol class="steps"><li><b>Android app (APK)</b>: works on a local http:// address, with GPS and alarms.</li><li>Open the site over <b>https://</b> (for example Frappe Cloud or your own domain).</li><li>For testing in Chrome: open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>, add <code>${esc(location.origin)}</code>, relaunch, then come back here.</li></ol>
+  <div class="mut">Meanwhile, Chrome's menu → <b>Add to Home screen → Create shortcut</b> puts an icon on your home screen (it opens in Chrome).</div>`;
+ else if(isIOS())body=`<div>In Safari, tap <b>Share</b> → <b>Add to Home Screen</b>.</div>`;
+ else body=`<div>Use the browser menu → <b>Install app</b> (or <b>Add to Home screen</b>). If you don't see it, reload this page once.</div>`;
+ return `<h2>Install app</h2><section class="card">${body}</section>`}
 function more(){const thm=getTheme(),p=prof,mine=db.props.filter(x=>x.by==p.user).length,openRem=db.rem.filter(r=>!r.done).length;
  return head("Account")+`<section class="card"><div class="profile">${avatar(64)}<div style="min-width:0"><h3 class="ell">${esc(p.full_name||"…")}</h3><div class="mut ell">${esc(p.email||"")}</div><div class="roles">${(p.roles||[]).map(r=>`<span class="role">${esc(r)}</span>`).join("")}</div></div></div>
  <div class="pstats"><div><b>${p.added??mine}</b><span>Added by you</span></div><div><b>${db.props.length}</b><span>All properties</span></div><div><b>${openRem}</b><span>Open reminders</span></div></div>
  <div class="mut" style="margin-top:12px">${p.last_login?`Last sign-in ${dt(p.last_login)}`:""}${p.member_since?` · Member since ${new Date(p.member_since).toLocaleDateString([],{month:"short",year:"numeric"})}`:""}</div>
  <div class="list" style="margin-top:8px">${p.desk?`<a href="/app/property">${ic("ext",18)} Open in Desk</a><a href="/app/user/${encodeURIComponent(p.user||"")}">${ic("gear",18)} Profile & password</a>`:`<a href="/update-password">${ic("gear",18)} Change password</a>`}<button class="d" onclick="logout()">${ic("logout",18)} Log out</button></div></section>
+ ${installCard()}
  <h2>Appearance</h2><div class="seg" role="group" aria-label="Theme"><button class="${thm=='light'?'on':''}" onclick="setTheme('light')">${ic("sun",16)} Light</button><button class="${thm=='dark'?'on':''}" onclick="setTheme('dark')">${ic("moon",16)} Dark</button><button class="${thm=='auto'?'on':''}" onclick="setTheme('auto')">${ic("monitor",16)} System</button></div>
  <h2>Data</h2><section class="card"><div class="mut">${ic("info",14)} ${esc(sync)}. Data is stored on your Frappe site and shared with your team.</div>
  <div class="list" style="margin-top:6px"><button onclick="load()">${ic("refresh",18)} Refresh</button><button onclick="csv()">${ic("download",18)} Export CSV (Excel)</button><button onclick="bak()">${ic("download",18)} Backup JSON</button><label>${ic("upload",18)} Import backup<input type="file" accept=".json" hidden onchange="rest(this)"></label></div></section>

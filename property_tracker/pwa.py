@@ -5,13 +5,24 @@ custom page renderer (hooks.page_renderer). The service worker lives at the
 site root so its scope can cover /property-tracker.
 """
 
+import hashlib
 import json
+import os
 
 import frappe
-from frappe.utils import get_build_version
 from werkzeug.wrappers import Response
 
 MANIFEST_PATH = "property-tracker.webmanifest"
+ASSETS = ("public/js/property_tracker.js", "public/css/property_tracker.css")
+
+
+def asset_version() -> str:
+	"""Changes whenever the tracker's own JS/CSS change, so phones never keep stale copies
+	(Frappe's build version only changes after a successful full `bench build`)."""
+	app = frappe.get_app_path("property_tracker")
+	stamp = "|".join(f"{os.path.getmtime(os.path.join(app, a)):.0f}:{os.path.getsize(os.path.join(app, a))}" for a in ASSETS)
+	return hashlib.sha1(stamp.encode()).hexdigest()[:10]
+
 SW_PATH = "property-tracker-sw.js"
 IMG = "/assets/property_tracker/images"
 
@@ -144,7 +155,7 @@ class PWARenderer:
 		if self.path == MANIFEST_PATH:
 			body, mimetype = json.dumps(manifest(), indent=1), "application/manifest+json"
 		else:
-			body, mimetype = SERVICE_WORKER.replace("__VERSION__", str(get_build_version())), "text/javascript"
+			body, mimetype = SERVICE_WORKER.replace("__VERSION__", asset_version()), "text/javascript"
 
 		response = Response(body, status=self.http_status_code, mimetype=mimetype)
 		response.headers["Cache-Control"] = "no-cache"

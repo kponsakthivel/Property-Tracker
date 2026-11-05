@@ -201,6 +201,7 @@ Roles: **Property Manager** (created on install) and **System Manager**.
 | Frappe Cloud: "Could not find a compatible Frappe version" | Use the `develop` branch on a Frappe v16 bench |
 | No reminder notifications | `bench --site <site> enable-scheduler`; turn alerts on under **Reminders** on that device; browsers need https |
 | GPS says the page is opened over http:// | Use https, localhost, the APK, or the Chrome flag above |
+| Chrome says "This app cannot be installed" | Installing needs `https://` (or localhost). On a local `http://` address use the APK, or the Chrome flag above, or **Create shortcut** for now. **Account → Install app** explains the options. |
 | Changes don't show on the phone | Run `bench build --app property_tracker`, then reopen the app twice (the installed app updates on the next launch) |
 
 ## Development
