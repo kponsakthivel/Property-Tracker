@@ -34,13 +34,47 @@ let startHash=location.hash;
 const st=()=>history.state||{v:"home",d:0};
 function urlFor(s){const x=s.s;if(x)return x.t=="d"?`#p/${x.id}`:x.t=="e"?`#p/${x.id}/edit`:x.t=="a"?"#add":"#compare";return s.v=="home"?location.pathname:`#${s.v}`}
 function setState(s,replace){history[replace?"replaceState":"pushState"](s,"",urlFor(s))}
+// ---- location ------------------------------------------------------------------
+// Phones answer first with a rough network fix, then GPS improves it. Keep watching and
+// keep the most accurate reading until it is good enough (goal metres) or time runs out.
+let gpsWatch=null,gpsTimer=null;
+function stopGps(){if(gpsWatch!=null)navigator.geolocation.clearWatch(gpsWatch);clearTimeout(gpsTimer);gpsWatch=gpsTimer=null}
+function gpsError(e){
+ if(!window.isSecureContext)return "Location is blocked because this site is opened over http://. Open it with https:// to use GPS.";
+ if(!navigator.geolocation)return "This browser does not support location.";
+ if(e&&e.code==1)return "Location permission is off. Allow Location for this site (or the Property Tracker app) in your phone settings, then try again.";
+ if(e&&e.code==2)return "Location unavailable. Turn on Location (GPS) on your phone and try again.";
+ return "Could not get a GPS fix. Move to open sky and try again.";
+}
+function locate({onFix,onDone,onFail,goal=20,wait=30000}){
+ stopGps();if(!window.isSecureContext||!navigator.geolocation)return onFail(gpsError());
+ let best=null,lastErr={code:3};
+ const finish=()=>{stopGps();best?onDone(best):onFail(gpsError(lastErr))};
+ gpsWatch=navigator.geolocation.watchPosition(r=>{
+   if(!best||r.coords.accuracy<best.coords.accuracy){best=r;onFix&&onFix(r)}
+   if(r.coords.accuracy<=goal)finish()},
+  e=>{lastErr=e;if(e.code==1&&!best){stopGps();onFail(gpsError(e))}}, // other errors are often transient: keep waiting, the timer decides
+  {enableHighAccuracy:true,maximumAge:0,timeout:wait});
+ gpsTimer=setTimeout(finish,wait);
+}
+const accTxt=a=>a>1000?`±${(a/1000).toFixed(1)} km`:`±${Math.round(a)} m`;
+function gps(){const g=$("gps");if(!g)return;
+ const show=(r,final)=>{const la=$("lat"),ln=$("lng"),st=$("gps");if(!la||!st)return stopGps();
+  la.value=r.coords.latitude.toFixed(6);ln.value=r.coords.longitude.toFixed(6);const a=r.coords.accuracy;
+  st.innerHTML=final?`✔ GPS captured ${accTxt(a)} · ${dt(now())}`+(a>1000?`<br><b>Only approximate location.</b> Turn on “Precise location” for this site/app for an exact fix.`:a>50?" · weak signal, recapture in the open for better accuracy":"")
+   :`Improving GPS… ${accTxt(a)} <button class="btn" style="padding:4px 10px" onclick="stopGps();gpsStop()">Use this</button>`};
+ window.gpsStop=()=>{const st=$("gps");if(st&&$("lat").value)st.textContent=`✔ GPS captured · ${dt(now())}`};
+ g.textContent="Getting GPS… (allow location if asked)";
+ locate({goal:15,wait:30000,onFix:r=>show(r,false),onDone:r=>show(r,true),onFail:m=>{const st=$("gps");if(st)st.innerHTML=`<b style="color:#c0392b">${esc(m)}</b> You can type the coordinates instead.`}})}
+function near(){toast("Finding your location…");locate({goal:100,wait:15000,onDone:g=>{const d=p=>hav(g.coords.latitude,g.coords.longitude,p.lat,p.lng);db.props.sort((a,b)=>d(a)-d(b));render();toast("Sorted nearest first")},onFail:m=>alert(m)})}
+function me(){toast("Finding your location…");locate({goal:50,wait:15000,onDone:g=>window.open(`https://www.google.com/maps?q=${g.coords.latitude},${g.coords.longitude}`),onFail:m=>alert(m)})}
 function nav(v,f=""){const s=st();view=v;flt=f;
  if(v=="home"){if(s.d>0)return history.go(-s.d);setState({v,f,d:0},true)}
  else setState({v,f,d:1},s.d>0); // Home→tab adds an entry; tab→tab replaces it, so Back always returns Home
  render()}
 function setF(f){flt=f;setState({...st(),f},true);render()}
 function openS(x){const s=st();setState({v:s.v,f:s.f,s:x,d:s.d+1});drawS(x)}
-function drawS(x){if(!x)return;if(x.t=="d")drawDetail(x.id);else if(x.t=="e")drawEdit(x.id);else if(x.t=="a")drawAdd();else drawCompare()}
+function drawS(x){stopGps();if(!x)return;if(x.t=="d")drawDetail(x.id);else if(x.t=="e")drawEdit(x.id);else if(x.t=="a")drawAdd();else drawCompare()}
 function redraw(){drawS(st().s)}
 function closeS(){if(st().s)history.back();else{$("sh").innerHTML="";render()}}
 function route(h){h=decodeURIComponent((h||"").replace(/^#/,""));let m;
@@ -52,7 +86,7 @@ window.addEventListener("popstate",e=>{
  const s=e.state||{v:"home",d:0},x=s.s;view=s.v||"home";flt=s.f||"";
  if(x&&(x.t=="d"||x.t=="e")&&!P(x.id))return history.back(); // property was deleted
  if(x&&x.t=="c"&&cmp.length<2)return history.back();
- if(x)drawS(x);else{$("sh").innerHTML="";render()}});
+ if(x)drawS(x);else{stopGps();$("sh").innerHTML="";render()}});
 // Android APK: hardware Back walks the in-app history and only leaves the app from Home.
 try{const C=window.Capacitor,A=C&&C.Plugins&&C.Plugins.App;if(A&&C.isNativePlatform&&C.isNativePlatform())A.addListener("backButton",()=>{if(st().d>0)history.back();else A.exitApp()})}catch(e){}
 function render(){
@@ -76,14 +110,12 @@ function list(){let r=db.props.filter(p=>(!flt||p.status==flt)&&(!q||JSON.string
  <div class="row wrap" style="margin-bottom:10px"><button class="btn" onclick="compare()">⇄ Compare selected (${cmp.length})</button><button class="btn" onclick="near()">📍 Nearest first</button></div>
  ${r.map(p=>`<div style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" style="width:22px;margin-top:30px" ${cmp.includes(p.id)?"checked":""} onchange="tgl('${p.id}')"><div style="flex:1">${item(p)}</div></div>`).join("")||'<div class="card mut">No properties match.</div>'}`}
 function tgl(id){cmp=cmp.includes(id)?cmp.filter(x=>x!=id):[...cmp,id].slice(-5)}
-function near(){navigator.geolocation?.getCurrentPosition(g=>{const d=p=>hav(g.coords.latitude,g.coords.longitude,p.lat,p.lng);db.props.sort((a,b)=>d(a)-d(b));render()},()=>alert("Location unavailable"))}
 function hav(a,b,c,d){if(c==null||c==="")return 1e9;const r=x=>x*Math.PI/180,h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 12742*Math.asin(Math.sqrt(h))}
 function map(){const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null);
  if(!ps.length)return `<h1>Map</h1><div class="card mut">No located properties yet.</div>`;
  const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><input placeholder="Search pins..." value="${esc(mq)}" oninput="mq=this.value; updateMap()"></div><div class="row wrap" style="margin-bottom:8px"><button class="btn ${!f?'p':''}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn ${f==s?'p':''}" onclick="setF('${s}')">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div><div class="card" style="padding:0; overflow:hidden"><div id="lmap" style="height:60vh; z-index:1;"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
 function initMap(){const m=$("lmap");if(!m)return;if(window.ptMap){window.ptMap.remove();window.ptMap=null}window.ptMap=L.map('lmap');L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(window.ptMap);updateMap(true)}
 function updateMap(fit){if(!window.ptMap)return;if(window.ptMarkers)window.ptMap.removeLayer(window.ptMarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&(!mq||JSON.stringify([p.id,p.name,p.locality,p.type]).toLowerCase().includes(mq.toLowerCase())));window.ptMarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:c,fillColor:c,fillOpacity:0.8,radius:10}).bindTooltip(`<b>${p.id}</b> ${SI[p.status]}<br>${esc(p.name||"")}`);m.on('click',()=>detail(p.id));return m})).addTo(window.ptMap);if(fit&&ps.length)window.ptMap.fitBounds(window.ptMarkers.getBounds(),{padding:[20,20]})}
-function me(){navigator.geolocation?.getCurrentPosition(g=>window.open(`https://www.google.com/maps?q=${g.coords.latitude},${g.coords.longitude}`),()=>alert("Location unavailable"))}
 function rem(){const rs=[...db.rem].sort((a,b)=>a.due.localeCompare(b.due));
  return `<h1>Reminders</h1><div class="card"><label>Reminder</label><input id="rt" placeholder="Call owner, check EC…"><div class="row"><div><label>Due</label><input id="rd" type="datetime-local"></div><div><label>Property</label><select id="rp"><option value="">—</option>${db.props.map(p=>`<option>${p.id}</option>`).join("")}</select></div></div><button class="btn p" onclick="addRem()">Add reminder</button></div><h2>Upcoming</h2>
  ${rs.map(r=>`<div class="card" style="margin-bottom:8px;opacity:${r.done?.5:1}"><label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" style="width:22px;margin:0" ${r.done?"checked":""} onchange="remDone('${r.k}',this.checked)"> ${esc(r.t)}</label><div class="mut">${dt(r.due)} ${r.p?"· "+r.p:""} ${!r.done&&new Date(r.due)<new Date()?"· <b style='color:#c0392b'>Overdue</b>":""}</div></div>`).join("")||'<div class="mut">None yet.</div>'}`}
@@ -114,7 +146,7 @@ function sheet(h){$("sh").innerHTML=`<div class="sheet"><div class="in">${h}</di
 let draft;
 function edit(){openS({t:"a"})}
 function drawAdd(){draft={photos:[],lat:"",lng:""};
- sheet(`<h1>Quick add</h1><div class="card"><div id="gps" class="mut">Getting GPS…</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any"></div><div><label>Longitude</label><input id="lng" type="number" step="any"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
+ sheet(`<h1>Quick add</h1><div class="card"><div id="gps" class="mut">Getting GPS…</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" oninput="stopGps()"></div><div><label>Longitude</label><input id="lng" type="number" step="any" oninput="stopGps()"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
  <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option>${t}</option>`).join("")}</select>
  <label>Site Title / Name</label><input id="stitle" placeholder="e.g. Anna Nagar Corner Plot"><label>Locality / village</label><input id="loc"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2"></div>
  <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal"></div><div><label>Unit</label><select id="unit">${Object.keys(U).map(u=>`<option>${u}</option>`).join("")}</select></div></div>
@@ -124,9 +156,8 @@ function drawAdd(){draft={photos:[],lat:"",lng:""};
  <div class="row"><div><label>Expected price</label><input id="pr" type="number" inputmode="decimal"></div><div><label>Price unit</label><select id="pu">${["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"].map(t=>`<option>${t}</option>`).join("")}</select></div></div>
  <label>Notes</label><textarea id="nt" rows="3"></textarea></div>
  <div class="row" style="margin-top:12px"><button class="btn" onclick="closeS()">Cancel</button><button class="btn p" onclick="saveP()">SAVE</button></div>`);gps()}
-function gps(){const g=$("gps");navigator.geolocation?navigator.geolocation.getCurrentPosition(r=>{$("lat").value=r.coords.latitude.toFixed(6);$("lng").value=r.coords.longitude.toFixed(6);g.textContent="GPS captured ±"+Math.round(r.coords.accuracy)+" m · "+dt(now())},()=>g.textContent="GPS unavailable — type coordinates manually",{enableHighAccuracy:true,timeout:10000}):g.textContent="GPS not supported"}
 function photos(i){[...i.files].forEach(f=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);const d=c.toDataURL("image/jpeg",.6);draft.photos.push({d,at:f.lastModified?new Date(f.lastModified).toISOString():now()});$("pv").innerHTML+=`<img src="${d}">`};im.src=u})}
-async function saveP(){if(busy)return;const v=i=>$(i).value.trim();
+async function saveP(){if(busy)return;stopGps();const v=i=>$(i).value.trim();
  const p={name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:$("unit").value,len:v("len"),wid:v("wid"),road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:v("pr"),punit:$("pu").value,notes:v("nt"),photos:draft.photos,status:"Visited"};
  put(await api("save_property",{data:p}));closeS()}
 function editP(id){if(P(id))openS({t:"e",id})}
@@ -137,7 +168,7 @@ function drawEdit(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat
  const puOpts=["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"].map(t=>`<option ${p.punit==t?"selected":""}>${t}</option>`).join("");
  const photoPreview=p.photos.map(x=>`<img src="${x.d}">`).join("");
  sheet(`<button class="btn" onclick="history.back()">← Back</button><h1>Edit ${p.id}</h1>
- <div class="card"><div id="gps" class="mut">Coordinates: ${p.lat||"—"}, ${p.lng||"—"}</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" value="${esc(p.lat)}"></div><div><label>Longitude</label><input id="lng" type="number" step="any" value="${esc(p.lng)}"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
+ <div class="card"><div id="gps" class="mut">Coordinates: ${p.lat||"—"}, ${p.lng||"—"}</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" value="${esc(p.lat)}" oninput="stopGps()"></div><div><label>Longitude</label><input id="lng" type="number" step="any" value="${esc(p.lng)}" oninput="stopGps()"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
  <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${typOpts}</select>
  <label>Site Title / Name</label><input id="stitle" value="${esc(p.name||'')}"><label>Locality / village</label><input id="loc" value="${esc(p.locality)}"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2">${photoPreview}</div>
  <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal" value="${esc(p.area)}"></div><div><label>Unit</label><select id="unit">${unitOpts}</select></div></div>
@@ -147,7 +178,7 @@ function drawEdit(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat
  <div class="row"><div><label>Expected price</label><input id="pr" type="number" inputmode="decimal" value="${esc(p.price)}"></div><div><label>Price unit</label><select id="pu">${puOpts}</select></div></div>
  <label>Notes</label><textarea id="nt" rows="3">${esc(p.notes)}</textarea></div>
  <div class="row" style="margin-top:12px"><button class="btn" onclick="history.back()">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">SAVE CHANGES</button></div>`)}
-async function saveEdit(id){if(busy||!P(id))return;const v=i=>$(i).value.trim();
+async function saveEdit(id){if(busy||!P(id))return;stopGps();const v=i=>$(i).value.trim();
  const p={name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:$("unit").value,len:v("len"),wid:v("wid"),road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:v("pr"),punit:$("pu").value,notes:v("nt"),photos:draft.photos};
  put(await api("save_property",{name:id,data:p}));history.back()}
 function detail(id){if(P(id))openS({t:"d",id})}
