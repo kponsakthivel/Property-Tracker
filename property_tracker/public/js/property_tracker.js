@@ -37,24 +37,33 @@ function setState(s,replace){history[replace?"replaceState":"pushState"](s,"",ur
 // ---- location ------------------------------------------------------------------
 // Phones answer first with a rough network fix, then GPS improves it. Keep watching and
 // keep the most accurate reading until it is good enough (goal metres) or time runs out.
-let gpsWatch=null,gpsTimer=null;
-function stopGps(){if(gpsWatch!=null)navigator.geolocation.clearWatch(gpsWatch);clearTimeout(gpsTimer);gpsWatch=gpsTimer=null}
+let gpsWatch=null,gpsTimer=null,gpsTok=null; // gpsTok identifies the active request; callbacks from stopped ones are ignored
+// Inside the Android app, use the phone's native GPS (Capacitor Geolocation plugin). It works even when
+// the Frappe site is opened over http:// on the local network, where browsers block location.
+const nativeGeo=()=>{try{const C=window.Capacitor;return C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.Geolocation||null}catch(e){return null}};
+function stopGps(){if(gpsWatch!=null){const w=gpsWatch,N=nativeGeo();if(typeof w=="string"){N&&N.clearWatch({id:w}).catch(()=>{})}else if(w&&w.then){/* cleared when its id arrives */}else navigator.geolocation.clearWatch(w)}clearTimeout(gpsTimer);gpsWatch=gpsTimer=gpsTok=null}
 function gpsError(e){
- if(!window.isSecureContext)return "Location is blocked because this site is opened over http://. Open it with https:// to use GPS.";
+ if(!nativeGeo()&&!window.isSecureContext)return "Location is blocked because this site is opened over http://"+(location.hostname?" ("+location.hostname+")":"")+". Use https://, open it at http://localhost on this computer, the Property Tracker Android app, or allow this address in Chrome (see README).";
  if(!navigator.geolocation)return "This browser does not support location.";
  if(e&&e.code==1)return "Location permission is off. Allow Location for this site (or the Property Tracker app) in your phone settings, then try again.";
  if(e&&e.code==2)return "Location unavailable. Turn on Location (GPS) on your phone and try again.";
  return "Could not get a GPS fix. Move to open sky and try again.";
 }
 function locate({onFix,onDone,onFail,goal=20,wait=30000}){
- stopGps();if(!window.isSecureContext||!navigator.geolocation)return onFail(gpsError());
- let best=null,lastErr={code:3};
+ stopGps();const N=nativeGeo();
+ if(!N&&(!window.isSecureContext||!navigator.geolocation))return onFail(gpsError());
+ let best=null,lastErr={code:3};const tok=gpsTok={};
  const finish=()=>{stopGps();best?onDone(best):onFail(gpsError(lastErr))};
- gpsWatch=navigator.geolocation.watchPosition(r=>{
+ const onPos=r=>{if(gpsTok!==tok||!r||!r.coords)return;
    if(!best||r.coords.accuracy<best.coords.accuracy){best=r;onFix&&onFix(r)}
-   if(r.coords.accuracy<=goal)finish()},
-  e=>{lastErr=e;if(e.code==1&&!best){stopGps();onFail(gpsError(e))}}, // other errors are often transient: keep waiting, the timer decides
-  {enableHighAccuracy:true,maximumAge:0,timeout:wait});
+   if(r.coords.accuracy<=goal)finish()};
+ const onErr=e=>{if(gpsTok!==tok)return;lastErr=e;if(e.code==1&&!best){stopGps();onFail(gpsError(e))}}; // other errors are often transient: keep waiting, the timer decides
+ if(N){ // native plugin reports errors as text
+   const nErr=err=>{const m=String(err&&(err.message||err)||"");onErr({code:/denied|permission/i.test(m)?1:/not enabled|disabled|services/i.test(m)?2:3})};
+   const pr=Promise.resolve(N.watchPosition({enableHighAccuracy:true,maximumAge:0,timeout:wait},(r,err)=>{if(err)nErr(err);else onPos(r)}));
+   gpsWatch=pr;
+   pr.then(id=>{if(gpsTok===tok)gpsWatch=id;else N.clearWatch({id}).catch(()=>{})}).catch(nErr);
+ }else gpsWatch=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:0,timeout:wait});
  gpsTimer=setTimeout(finish,wait);
 }
 const accTxt=a=>a>1000?`±${(a/1000).toFixed(1)} km`:`±${Math.round(a)} m`;

@@ -43,7 +43,25 @@ Then give users the **Property Manager** role and open `/property-tracker`.
 ### Using it on your phone
 
 The phone must be able to reach your Frappe site, ideally over **HTTPS**.
-Android blocks GPS on plain `http://` pages.
+
+#### GPS on a local / `http://` site
+
+Browsers only allow location on secure pages. Where GPS works:
+
+| How you open the tracker | GPS |
+| --- | --- |
+| `https://…` (any device) | ✅ |
+| `http://localhost:8000` or `http://<site>.localhost:8000` on the same computer | ✅ (localhost counts as secure) |
+| **Android APK**, even when `SITE_URL` is `http://192.168.x.x:8000` | ✅ uses the phone's native GPS |
+| Phone browser at `http://192.168.x.x:8000` | ❌ blocked unless you allow it in Chrome (below) |
+
+To allow a local address in **Chrome on Android** (for testing):
+
+1. Open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+2. Enable it and enter your site address exactly, e.g. `http://192.168.1.42:8000`
+3. Tap **Relaunch**, then open the tracker again and allow location
+
+Use HTTPS for real use. The flag applies only to that phone's Chrome.
 
 #### Option 1 – Install from the browser (PWA)
 
