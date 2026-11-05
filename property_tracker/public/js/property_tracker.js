@@ -16,7 +16,8 @@ function loadBar(){const e=document.getElementById("ld");if(e)e.className=busy?"
 function toast(t){const e=document.getElementById("toast");e.textContent=t;e.hidden=false;clearTimeout(window.tt);window.tt=setTimeout(()=>e.hidden=true,4000)}
 function put(p){const i=db.props.findIndex(x=>x.id==p.id);if(i<0)db.props.push(p);else db.props[i]=p;return p}
 async function load(){try{const d=await api("get_data");db={props:d.props,rem:d.rem};sync="Synced at "+new Date().toLocaleTimeString([],{timeStyle:"short"})}catch(e){sync="Could not reach server"}
- if(!document.getElementById("sh").innerHTML)render();const h=decodeURIComponent(location.hash.slice(1));if(h&&P(h)){history.replaceState(null,"",location.pathname);detail(h)}}
+ const s=st().s;if(!s)render();else if(s.t=="d")redraw();
+ if(startHash!==null){const h=startHash;startHash=null;route(h)}}
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!document.getElementById("sh").innerHTML)load()});
 const $=id=>document.getElementById(id),P=id=>db.props.find(p=>p.id==id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -27,7 +28,33 @@ const psf=p=>sqft(p)&&total(p)?total(p)/sqft(p):0,pc=p=>psf(p)*435.6;
 const gm=p=>`https://www.google.com/maps?q=${p.lat},${p.lng}`;
 const now=()=>new Date().toISOString();const dt=s=>s?new Date(s).toLocaleString([],{dateStyle:"medium",timeStyle:"short"}):"—";
 const same=(s,d)=>s&&new Date(s).toDateString()==d.toDateString();
-function nav(v){view=v;flt="";render()}
+// ---- navigation: every screen is a history entry, so phone/browser Back works ----
+// state = {v: tab, f: status filter, s: open sheet {t:"d"|"e"|"a"|"c", id}, d: depth from Home}
+let startHash=location.hash;
+const st=()=>history.state||{v:"home",d:0};
+function urlFor(s){const x=s.s;if(x)return x.t=="d"?`#p/${x.id}`:x.t=="e"?`#p/${x.id}/edit`:x.t=="a"?"#add":"#compare";return s.v=="home"?location.pathname:`#${s.v}`}
+function setState(s,replace){history[replace?"replaceState":"pushState"](s,"",urlFor(s))}
+function nav(v,f=""){const s=st();view=v;flt=f;
+ if(v=="home"){if(s.d>0)return history.go(-s.d);setState({v,f,d:0},true)}
+ else setState({v,f,d:1},s.d>0); // Home→tab adds an entry; tab→tab replaces it, so Back always returns Home
+ render()}
+function setF(f){flt=f;setState({...st(),f},true);render()}
+function openS(x){const s=st();setState({v:s.v,f:s.f,s:x,d:s.d+1});drawS(x)}
+function drawS(x){if(!x)return;if(x.t=="d")drawDetail(x.id);else if(x.t=="e")drawEdit(x.id);else if(x.t=="a")drawAdd();else drawCompare()}
+function redraw(){drawS(st().s)}
+function closeS(){if(st().s)history.back();else{$("sh").innerHTML="";render()}}
+function route(h){h=decodeURIComponent((h||"").replace(/^#/,""));let m;
+ if(["list","map","rem","more"].includes(h))nav(h);
+ else if((m=h.match(/^(?:p\/)?(P\d+)(\/edit)?$/))&&P(m[1])){openS({t:"d",id:m[1]});if(m[2])openS({t:"e",id:m[1]})}
+ else if(h=="add")openS({t:"a"})}
+window.addEventListener("popstate",e=>{
+ if(!e.state&&location.hash){const h=location.hash;history.replaceState({v:"home",d:0},"",location.pathname);view="home";flt="";$("sh").innerHTML="";render();return route(h)} // link to #p/P0001 etc.
+ const s=e.state||{v:"home",d:0},x=s.s;view=s.v||"home";flt=s.f||"";
+ if(x&&(x.t=="d"||x.t=="e")&&!P(x.id))return history.back(); // property was deleted
+ if(x&&x.t=="c"&&cmp.length<2)return history.back();
+ if(x)drawS(x);else{$("sh").innerHTML="";render()}});
+// Android APK: hardware Back walks the in-app history and only leaves the app from Home.
+try{const C=window.Capacitor,A=C&&C.Plugins&&C.Plugins.App;if(A&&C.isNativePlatform&&C.isNativePlatform())A.addListener("backButton",()=>{if(st().d>0)history.back();else A.exitApp()})}catch(e){}
 function render(){
  $("nav").innerHTML=[["home","⌂","Home"],["list","☰","Properties"],["map","⌖","Map"],["rem","⏰","Reminders"],["more","⋯","More"]].map(([v,i,t])=>`<button class="${view==v?"on":""}" onclick="nav('${v}')"><b>${i}</b>${t}</button>`).join("");
  if(window.ptMap){window.ptMap.remove();window.ptMap=null}
@@ -36,7 +63,7 @@ function render(){
 }
 function home(){const t=new Date(),wk=new Date(Date.now()-6048e5),c=f=>db.props.filter(f).length,s=x=>c(p=>p.status==x);
  const due=db.rem.filter(r=>!r.done&&new Date(r.due)<=new Date(Date.now()+864e5)).length;
- const card=(n,l,f)=>`<div class="card stat" onclick="flt='${f}';view='list';render()"><b>${n}</b><span>${l}</span></div>`;
+ const card=(n,l,f)=>`<div class="card stat" onclick="nav('list','${f}')"><b>${n}</b><span>${l}</span></div>`;
  const pr=db.props.filter(p=>total(p)),avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
  const loc={};db.props.forEach(p=>{const k=p.locality||p.district||"Unknown";loc[k]=(loc[k]||0)+1});
  return `<h1>Site Visits</h1><div class="grid">${card(c(p=>same(p.created,t)),"Visited Today","")}${card(c(p=>new Date(p.created)>wk),"This Week","")}${card(s("Shortlisted"),"Shortlisted","Shortlisted")}${card(s("Negotiating"),"Negotiating","Negotiating")}${card(s("Document Verification"),"Document Verification","Document Verification")}${card(s("Revisit Required"),"Site Revisit","Revisit Required")}${card(s("Purchased"),"Purchased","Purchased")}${card(s("Rejected"),"Rejected","Rejected")}<div class="card stat" onclick="nav('rem')"><b>${due}</b><span>Follow-ups Due</span></div><div class="card stat"><b>${db.props.length}</b><span>Total Visited</span></div></div>
@@ -45,7 +72,7 @@ function home(){const t=new Date(),wk=new Date(Date.now()-6048e5),c=f=>db.props.
  <h2>Recent Visits</h2>${db.props.slice(-5).reverse().map(item).join("")||'<div class="card mut">Tap + ADD PROPERTY at your first site.</div>'}`}
 function item(p){return `<div class="card item" onclick="detail('${p.id}')">${p.photos?.[0]?`<img src="${p.photos[0].d}">`:'<div class="ph">🏞</div>'}<div style="flex:1;min-width:0"><b>${p.id}</b> ${esc(p.name||"")} ${pill(p.status)}<div class="mut">${esc(p.locality||"")} ${esc(p.type)} · ${p.area||"—"} ${p.unit} · ${p.facing||""}</div><div>${inr(total(p))} <span class="mut">${psf(p)?"· "+inr(pc(p))+"/cent":""}</span></div><div class="mut">Last visit ${dt(p.visits.length?p.visits.at(-1).at:p.created)}</div></div></div>`}
 function list(){let r=db.props.filter(p=>(!flt||p.status==flt)&&(!q||JSON.stringify([p.id,p.name,p.locality,p.district,p.owner,p.broker,p.type]).toLowerCase().includes(q.toLowerCase())));
- return `<h1>Properties</h1><div class="row"><input placeholder="Search location, owner, ID…" value="${esc(q)}" oninput="q=this.value;clearTimeout(window.t);window.t=setTimeout(render,300)"><select onchange="flt=this.value;render()"><option value="">All statuses</option>${ST.map(s=>`<option ${s==flt?"selected":""}>${s}</option>`).join("")}</select></div>
+ return `<h1>Properties</h1><div class="row"><input placeholder="Search location, owner, ID…" value="${esc(q)}" oninput="q=this.value;clearTimeout(window.t);window.t=setTimeout(render,300)"><select onchange="setF(this.value)"><option value="">All statuses</option>${ST.map(s=>`<option ${s==flt?"selected":""}>${s}</option>`).join("")}</select></div>
  <div class="row wrap" style="margin-bottom:10px"><button class="btn" onclick="compare()">⇄ Compare selected (${cmp.length})</button><button class="btn" onclick="near()">📍 Nearest first</button></div>
  ${r.map(p=>`<div style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" style="width:22px;margin-top:30px" ${cmp.includes(p.id)?"checked":""} onchange="tgl('${p.id}')"><div style="flex:1">${item(p)}</div></div>`).join("")||'<div class="card mut">No properties match.</div>'}`}
 function tgl(id){cmp=cmp.includes(id)?cmp.filter(x=>x!=id):[...cmp,id].slice(-5)}
@@ -53,7 +80,7 @@ function near(){navigator.geolocation?.getCurrentPosition(g=>{const d=p=>hav(g.c
 function hav(a,b,c,d){if(c==null||c==="")return 1e9;const r=x=>x*Math.PI/180,h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 12742*Math.asin(Math.sqrt(h))}
 function map(){const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null);
  if(!ps.length)return `<h1>Map</h1><div class="card mut">No located properties yet.</div>`;
- const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><input placeholder="Search pins..." value="${esc(mq)}" oninput="mq=this.value; updateMap()"></div><div class="row wrap" style="margin-bottom:8px"><button class="btn ${!f?'p':''}" onclick="flt='';render()">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn ${f==s?'p':''}" onclick="flt='${s}';render()">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div><div class="card" style="padding:0; overflow:hidden"><div id="lmap" style="height:60vh; z-index:1;"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
+ const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><input placeholder="Search pins..." value="${esc(mq)}" oninput="mq=this.value; updateMap()"></div><div class="row wrap" style="margin-bottom:8px"><button class="btn ${!f?'p':''}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn ${f==s?'p':''}" onclick="setF('${s}')">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div><div class="card" style="padding:0; overflow:hidden"><div id="lmap" style="height:60vh; z-index:1;"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
 function initMap(){const m=$("lmap");if(!m)return;if(window.ptMap){window.ptMap.remove();window.ptMap=null}window.ptMap=L.map('lmap');L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(window.ptMap);updateMap(true)}
 function updateMap(fit){if(!window.ptMap)return;if(window.ptMarkers)window.ptMap.removeLayer(window.ptMarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&(!mq||JSON.stringify([p.id,p.name,p.locality,p.type]).toLowerCase().includes(mq.toLowerCase())));window.ptMarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:c,fillColor:c,fillOpacity:0.8,radius:10}).bindTooltip(`<b>${p.id}</b> ${SI[p.status]}<br>${esc(p.name||"")}`);m.on('click',()=>detail(p.id));return m})).addTo(window.ptMap);if(fit&&ps.length)window.ptMap.fitBounds(window.ptMarkers.getBounds(),{padding:[20,20]})}
 function me(){navigator.geolocation?.getCurrentPosition(g=>window.open(`https://www.google.com/maps?q=${g.coords.latitude},${g.coords.longitude}`),()=>alert("Location unavailable"))}
@@ -79,13 +106,14 @@ function bak(){dl("backup.json",JSON.stringify(db),"application/json")}
 function rest(i){const f=i.files[0];if(!f)return;i.value="";f.text().then(async t=>{let d;try{d=JSON.parse(t)}catch(e){return alert("Invalid file")}
  if(!confirm(`Import ${(d.props||[]).length} properties and ${(d.rem||[]).length} reminders as new records?`))return;
  const r=await api("import_backup",{data:d});toast(`Imported ${r.properties} properties and ${r.reminders} reminders`);load()})}
-function compare(){if(cmp.length<2)return alert("Select 2–5 properties");const ps=cmp.map(P);
+function compare(){if(cmp.length<2)return alert("Select 2–5 properties");openS({t:"c"})}
+function drawCompare(){const ps=cmp.map(P).filter(Boolean);
  const rows=[["Location",p=>p.locality],["Type",p=>p.type],["Area",p=>p.area?p.area+" "+p.unit:""],["Length",p=>p.len],["Width",p=>p.wid],["Road width",p=>p.road],["Facing",p=>p.facing],["Price",p=>inr(total(p))],["Per cent",p=>inr(pc(p))],["Per sq.ft",p=>inr(psf(p))],["Owner",p=>p.owner],["Rating",p=>p.rating||""],["Status",p=>p.status],["Notes",p=>p.notes]];
  sheet(`<h1>Compare</h1><div class="scroll"><table><tr><th></th>${ps.map(p=>`<th>${p.id}</th>`).join("")}</tr>${rows.map(([l,f])=>{const v=ps.map(f),d=new Set(v.map(String)).size>1;return `<tr><td><b>${l}</b></td>${v.map(x=>`<td class="${d?"diff":""}">${esc(x)}</td>`).join("")}</tr>`}).join("")}</table></div><p class="mut">Highlighted rows differ between properties.</p><button class="btn" onclick="closeS()">Close</button>`)}
 function sheet(h){$("sh").innerHTML=`<div class="sheet"><div class="in">${h}</div></div>`}
-function closeS(){$("sh").innerHTML="";render()}
 let draft;
-function edit(){draft={photos:[],lat:"",lng:""};
+function edit(){openS({t:"a"})}
+function drawAdd(){draft={photos:[],lat:"",lng:""};
  sheet(`<h1>Quick add</h1><div class="card"><div id="gps" class="mut">Getting GPS…</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any"></div><div><label>Longitude</label><input id="lng" type="number" step="any"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
  <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option>${t}</option>`).join("")}</select>
  <label>Site Title / Name</label><input id="stitle" placeholder="e.g. Anna Nagar Corner Plot"><label>Locality / village</label><input id="loc"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2"></div>
@@ -101,13 +129,14 @@ function photos(i){[...i.files].forEach(f=>{const im=new Image(),u=URL.createObj
 async function saveP(){if(busy)return;const v=i=>$(i).value.trim();
  const p={name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:$("unit").value,len:v("len"),wid:v("wid"),road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:v("pr"),punit:$("pu").value,notes:v("nt"),photos:draft.photos,status:"Visited"};
  put(await api("save_property",{data:p}));closeS()}
-function editP(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.lat,lng:p.lng};
+function editP(id){if(P(id))openS({t:"e",id})}
+function drawEdit(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.lat,lng:p.lng};
  const typOpts=["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option ${p.type==t?"selected":""}>${t}</option>`).join("");
  const unitOpts=Object.keys(U).map(u=>`<option ${p.unit==u?"selected":""}>${u}</option>`).join("");
  const faceOpts=["North","South","East","West","North East","North West","South East","South West"].map(t=>`<option ${p.facing==t?"selected":""}>${t}</option>`).join("");
  const puOpts=["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"].map(t=>`<option ${p.punit==t?"selected":""}>${t}</option>`).join("");
  const photoPreview=p.photos.map(x=>`<img src="${x.d}">`).join("");
- sheet(`<button class="btn" onclick="detail('${id}')">← Back</button><h1>Edit ${p.id}</h1>
+ sheet(`<button class="btn" onclick="history.back()">← Back</button><h1>Edit ${p.id}</h1>
  <div class="card"><div id="gps" class="mut">Coordinates: ${p.lat||"—"}, ${p.lng||"—"}</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" value="${esc(p.lat)}"></div><div><label>Longitude</label><input id="lng" type="number" step="any" value="${esc(p.lng)}"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
  <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${typOpts}</select>
  <label>Site Title / Name</label><input id="stitle" value="${esc(p.name||'')}"><label>Locality / village</label><input id="loc" value="${esc(p.locality)}"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2">${photoPreview}</div>
@@ -117,11 +146,12 @@ function editP(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.
  <div class="row"><div><label>Owner</label><input id="own" value="${esc(p.owner)}"></div><div><label>Phone</label><input id="tel" type="tel" value="${esc(p.phone)}"></div></div>
  <div class="row"><div><label>Expected price</label><input id="pr" type="number" inputmode="decimal" value="${esc(p.price)}"></div><div><label>Price unit</label><select id="pu">${puOpts}</select></div></div>
  <label>Notes</label><textarea id="nt" rows="3">${esc(p.notes)}</textarea></div>
- <div class="row" style="margin-top:12px"><button class="btn" onclick="detail('${id}')">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">SAVE CHANGES</button></div>`)}
+ <div class="row" style="margin-top:12px"><button class="btn" onclick="history.back()">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">SAVE CHANGES</button></div>`)}
 async function saveEdit(id){if(busy||!P(id))return;const v=i=>$(i).value.trim();
  const p={name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:$("unit").value,len:v("len"),wid:v("wid"),road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:v("pr"),punit:$("pu").value,notes:v("nt"),photos:draft.photos};
- put(await api("save_property",{name:id,data:p}));detail(id)}
-function detail(id){const p=P(id);if(!p)return;
+ put(await api("save_property",{name:id,data:p}));history.back()}
+function detail(id){if(P(id))openS({t:"d",id})}
+function drawDetail(id){const p=P(id);if(!p)return;
  sheet(`<button class="btn" onclick="closeS()">← Back</button><h1>${p.id} ${pill(p.status)}</h1><div class="mut">${esc(p.locality)} · ${esc(p.type)} · added ${dt(p.created)}</div>
  <div class="ph2" style="margin:10px 0">${p.photos.map(x=>`<img src="${x.d}">`).join("")}</div>
  <div class="row wrap" style="margin-bottom:10px">${p.lat?`<button class="btn" onclick="window.open('${gm(p)}', '_blank')">Open in Maps</button><button class="btn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}', '_blank')">Navigate</button>`:""}<button class="btn" onclick="navigator.clipboard?.writeText(gm(P('${id}')))">Copy location</button><button class="btn" onclick="share('${id}')">Share</button>${p.phone?`<button class="btn" onclick="window.location.href='tel:${esc(p.phone)}'">Call</button><button class="btn" onclick="window.open('https://wa.me/${esc(p.phone.replace(/\D/g,""))}', '_blank')">WhatsApp</button>`:""}</div>
@@ -132,9 +162,9 @@ function detail(id){const p=P(id);if(!p)return;
  <h2>Visits (${p.visits.length})</h2><textarea id="vn" rows="2" placeholder="What was discussed, new price, follow-up…"></textarea><button class="btn" onclick="visit('${id}')">Log new visit</button>
  <div class="mut" style="margin-top:8px">${p.visits.map(v=>`<b>${dt(v.at)}</b> ${esc(v.note)}`).join("<br>")}</div>
  <h2></h2><div class="row wrap"><button class="btn" onclick="editP('${id}')">✏️ Edit Details</button><button class="btn d" onclick="delP('${id}')">Delete property</button></div>`)}
-async function setS(id){const p=P(id),to=$("ns").value;if(to!=p.status)put(await api("set_status",{name:id,status:to,note:$("sn").value}));detail(id)}
-async function deal(id){put(await api("update_deal",{name:id,negotiated_price:$("neg").value,rating:$("rt2").value}));detail(id)}
+async function setS(id){const p=P(id),to=$("ns").value;if(to!=p.status)put(await api("set_status",{name:id,status:to,note:$("sn").value}));redraw()}
+async function deal(id){put(await api("update_deal",{name:id,negotiated_price:$("neg").value,rating:$("rt2").value}));redraw()}
 async function delP(id){if(!confirm(`Delete ${id}?`))return;await api("delete_property",{name:id});db.props=db.props.filter(x=>x.id!=id);db.rem.forEach(r=>{if(r.p==id)r.p=""});cmp=cmp.filter(x=>x!=id);closeS()}
-async function visit(id){const n=$("vn").value.trim();if(!n)return;put(await api("log_visit",{name:id,note:n}));detail(id)}
+async function visit(id){const n=$("vn").value.trim();if(!n)return;put(await api("log_visit",{name:id,note:n}));redraw()}
 function share(id){const p=P(id),t=`${p.id} · ${p.locality} ${p.type}\n${p.area||"—"} ${p.unit}, ${p.len||"—"}×${p.wid||"—"}, road ${p.road||"—"}, ${p.facing||"—"} facing\nPrice ${inr(total(p))} · ${p.status}\n${p.lat?gm(p):""}\n${p.notes||""}`;navigator.share?navigator.share({text:t}).catch(()=>{}):navigator.clipboard?.writeText(t).then(()=>alert("Summary copied (owner details excluded)"))}
-render();load();
+history.replaceState({v:"home",d:0},"",location.pathname);render();load();
