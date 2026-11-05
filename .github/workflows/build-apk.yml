@@ -46,10 +46,13 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
-      - name: Allow GPS and camera
+      - name: Allow GPS, camera and on-time reminder alarms
         run: |
-          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
           grep -c "uses-permission" android/app/src/main/AndroidManifest.xml
+
+      - name: Notification icon
+        run: cp -r android-res/* android/app/src/main/res/
 
       - name: App icon and splash screen
         run: npx capacitor-assets generate --android

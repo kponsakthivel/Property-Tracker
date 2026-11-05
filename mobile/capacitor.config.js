@@ -21,4 +21,11 @@ module.exports = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    LocalNotifications: {
+      // Reminder alarms: monochrome status-bar icon (copied into the Android project by the build).
+      smallIcon: "ic_stat_notify",
+      iconColor: "#1f6f50",
+    },
+  },
 };

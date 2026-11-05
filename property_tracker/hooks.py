@@ -154,7 +154,8 @@ after_install = "property_tracker.install.after_install"
 
 scheduler_events = {
 	"cron": {
-		"*/5 * * * *": [
+		# every minute, so reminder alerts arrive on time
+		"* * * * *": [
 			"property_tracker.property_tracker.doctype.property_reminder.property_reminder.send_due_reminders"
 		],
 	},

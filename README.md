@@ -8,7 +8,7 @@ pricing, status pipeline, visit log, reminders, map view and side-by-side compar
 - **Mobile-friendly tracker** at `/property-tracker` (also on the Frappe apps screen)
 - Save a property with GPS location, photos, owner details and price. Area and per-cent and per-sq.ft prices are worked out automatically.
 - Status pipeline: New, Visited, Shortlisted, Negotiating, Document Verification, Purchased, Rejected and more. Every change is logged.
-- Log revisits, set reminders. Due reminders appear in the Desk notification bell.
+- Log revisits and set reminders, with alarms on the phone (APK), push notifications (browser / installed app) and the Desk bell
 - Map of all properties (Leaflet + OpenStreetMap), nearest-first sorting
 - Compare 2–5 properties, export CSV, back up as JSON
 - Light and dark mode
@@ -98,6 +98,23 @@ cd android && ./gradlew assembleDebug
 
 Before building, add the location and camera permissions to `android/app/src/main/AndroidManifest.xml`
 (see `.github/workflows/build-apk.yml`).
+
+#### Reminder alarms and notifications
+
+Open **Reminders → Turn on** on each device that should be alerted.
+
+| Where | How it alerts | Needs |
+| --- | --- | --- |
+| **Android APK** | A native alarm scheduled on the phone rings at the due time, even when the app is closed, the phone is offline or it has restarted | Allow notifications when asked |
+| **Browser / installed web app** (Android Chrome, desktop, iPhone home-screen app on iOS 16.4+) | Web Push sent by the Frappe server when the reminder is due | `https://` (or `localhost`) and the scheduler running |
+| **Desk** | Notification bell | Scheduler running |
+
+The server checks for due reminders every minute. Make sure the scheduler is on:
+`bench --site <site> enable-scheduler` (Frappe Cloud has it on by default).
+
+Web Push keys are created automatically and stored in **Property Tracker Settings**. Each device's
+registration is listed under **Property Push Subscription**. Expired registrations are removed
+automatically.
 
 #### Moving data from the old standalone app
 

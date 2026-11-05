@@ -1,0 +1,62 @@
+{
+ "actions": [],
+ "creation": "2026-11-06 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "push_section",
+  "vapid_subject",
+  "vapid_public_key",
+  "vapid_private_key"
+ ],
+ "fields": [
+  {
+   "description": "Keys are generated automatically the first time someone turns on reminder alerts. Changing them signs every device out of alerts.",
+   "fieldname": "push_section",
+   "fieldtype": "Section Break",
+   "label": "Web Push (browser / installed app)"
+  },
+  {
+   "description": "mailto: address or https:// URL push services can use to contact you. Defaults to the Administrator email.",
+   "fieldname": "vapid_subject",
+   "fieldtype": "Data",
+   "label": "Contact for push services"
+  },
+  {
+   "fieldname": "vapid_public_key",
+   "fieldtype": "Data",
+   "label": "Public key",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vapid_private_key",
+   "fieldtype": "Password",
+   "hidden": 1,
+   "label": "Private key",
+   "read_only": 1
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-06 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Property Tracker",
+ "name": "Property Tracker Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

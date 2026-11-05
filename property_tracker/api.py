@@ -322,3 +322,74 @@ def import_backup(data):
 		reminders += 1
 
 	return {"properties": len(id_map), "reminders": reminders}
+
+
+# ---------------------------------------------------------------- reminder alerts (Web Push)
+
+
+def _device_name(user_agent):
+	ua = user_agent or ""
+	os_name = next((n for k, n in (("Android", "Android"), ("iPhone", "iPhone"), ("iPad", "iPad"), ("Windows", "Windows"), ("Mac OS", "Mac"), ("Linux", "Linux")) if k in ua), "Device")
+	browser = next((n for k, n in (("Edg/", "Edge"), ("Firefox/", "Firefox"), ("Chrome/", "Chrome"), ("Safari/", "Safari")) if k in ua), "browser")
+	return f"{browser} on {os_name}"
+
+
+@frappe.whitelist()
+def get_push_config():
+	from property_tracker.webpush import get_vapid_keys
+
+	public_key, _key = get_vapid_keys()
+	return {"public_key": public_key}
+
+
+@frappe.whitelist(methods=["POST"])
+def save_push_subscription(subscription, user_agent=None):
+	"""Register (or refresh) this browser for reminder alerts for the current user."""
+	from property_tracker.webpush import SUBSCRIPTION, endpoint_hash
+
+	subscription = _parse(subscription)
+	keys = subscription.get("keys") or {}
+	endpoint = subscription.get("endpoint") or ""
+	if not endpoint.startswith("https://") or not keys.get("p256dh") or not keys.get("auth"):
+		frappe.throw(_("Invalid push subscription"))
+
+	name = endpoint_hash(endpoint)
+	values = {
+		"user": frappe.session.user,
+		"device": _device_name(user_agent),
+		"endpoint": endpoint,
+		"p256dh": keys["p256dh"],
+		"auth": keys["auth"],
+	}
+	if frappe.db.exists(SUBSCRIPTION, name):
+		doc = frappe.get_doc(SUBSCRIPTION, name)
+		doc.update(values)
+		doc.save(ignore_permissions=True)
+	else:
+		frappe.get_doc({"doctype": SUBSCRIPTION, "endpoint_hash": name, **values}).insert(ignore_permissions=True)
+	return {"ok": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_push_subscription(endpoint):
+	from property_tracker.webpush import SUBSCRIPTION, endpoint_hash
+
+	name = endpoint_hash(endpoint or "")
+	if frappe.db.get_value(SUBSCRIPTION, name, "user") == frappe.session.user:
+		frappe.delete_doc(SUBSCRIPTION, name, ignore_permissions=True, force=True)
+	return {"ok": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def send_test_push():
+	from property_tracker.webpush import send_to_user
+
+	return send_to_user(
+		frappe.session.user,
+		{
+			"title": "🔔 Property Tracker",
+			"body": "Reminder alerts are working on this device.",
+			"tag": "pt-test",
+			"url": "/property-tracker#rem",
+		},
+	)

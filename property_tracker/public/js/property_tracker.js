@@ -17,7 +17,8 @@ function toast(t){const e=document.getElementById("toast");e.textContent=t;e.hid
 function put(p){const i=db.props.findIndex(x=>x.id==p.id);if(i<0)db.props.push(p);else db.props[i]=p;return p}
 async function load(){try{const d=await api("get_data");db={props:d.props,rem:d.rem};sync="Synced at "+new Date().toLocaleTimeString([],{timeStyle:"short"})}catch(e){sync="Could not reach server"}
  const s=st().s;if(!s)render();else if(s.t=="d")redraw();
- if(startHash!==null){const h=startHash;startHash=null;route(h)}}
+ if(startHash!==null){const h=startHash;startHash=null;route(h)}
+ refreshAlerts()}
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!document.getElementById("sh").innerHTML)load()});
 const $=id=>document.getElementById(id),P=id=>db.props.find(p=>p.id==id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -103,6 +104,7 @@ function render(){
  if(window.ptMap){window.ptMap.remove();window.ptMap=null}
  $("m").innerHTML=({home,list,map,rem,more})[view]()+`<button class="fab" onclick="edit()">+ ADD PROPERTY</button>`;
  if(view=='map')setTimeout(initMap,0);
+ if(view=='rem')setTimeout(updateAlertsCard,0);
 }
 function home(){const t=new Date(),wk=new Date(Date.now()-6048e5),c=f=>db.props.filter(f).length,s=x=>c(p=>p.status==x);
  const due=db.rem.filter(r=>!r.done&&new Date(r.due)<=new Date(Date.now()+864e5)).length;
@@ -125,14 +127,74 @@ function map(){const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null);
  const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><input placeholder="Search pins..." value="${esc(mq)}" oninput="mq=this.value; updateMap()"></div><div class="row wrap" style="margin-bottom:8px"><button class="btn ${!f?'p':''}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn ${f==s?'p':''}" onclick="setF('${s}')">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div><div class="card" style="padding:0; overflow:hidden"><div id="lmap" style="height:60vh; z-index:1;"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
 function initMap(){const m=$("lmap");if(!m)return;if(window.ptMap){window.ptMap.remove();window.ptMap=null}window.ptMap=L.map('lmap');L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(window.ptMap);updateMap(true)}
 function updateMap(fit){if(!window.ptMap)return;if(window.ptMarkers)window.ptMap.removeLayer(window.ptMarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&(!mq||JSON.stringify([p.id,p.name,p.locality,p.type]).toLowerCase().includes(mq.toLowerCase())));window.ptMarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:c,fillColor:c,fillOpacity:0.8,radius:10}).bindTooltip(`<b>${p.id}</b> ${SI[p.status]}<br>${esc(p.name||"")}`);m.on('click',()=>detail(p.id));return m})).addTo(window.ptMap);if(fit&&ps.length)window.ptMap.fitBounds(window.ptMarkers.getBounds(),{padding:[20,20]})}
+// ---- reminder alerts -----------------------------------------------------------
+// Android app: native alarms scheduled on the phone (ring at the due time, even offline / app closed).
+// Browser or installed web app: Web Push sent by the Frappe scheduler (needs https:// or localhost).
+const LN=()=>{try{const C=window.Capacitor;return C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications||null}catch(e){return null}};
+const pushSupported=()=>!LN()&&window.isSecureContext&&"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+let alertsOn=false,alertsRefreshed=false,chanMade=false;
+const nid=k=>{let h=0;for(const c of String(k))h=(h*31+c.charCodeAt(0))|0;return Math.abs(h)%2147483000+1};
+const remUrl=r=>r.p?`/property-tracker#p/${r.p}`:"/property-tracker#rem";
+const b64uBytes=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");t+="=".repeat((4-t.length%4)%4);return Uint8Array.from(atob(t),c=>c.charCodeAt(0))};
+const sameKey=(a,b)=>{if(!a)return false;a=new Uint8Array(a);return a.length==b.length&&a.every((x,i)=>x==b[i])};
+const swReg=()=>navigator.serviceWorker.getRegistration("/property-tracker");
+function pushHelp(){return !window.isSecureContext?"Alerts need https:// (or localhost). On this http:// address, use the Property Tracker Android app, which rings its own alarms.":"This browser can't receive push alerts. On iPhone, add Property Tracker to the Home Screen first (iOS 16.4 or later)."}
+async function alertsState(){ // "on" | "off" | "blocked" | "unsupported"
+ const N=LN();if(N){const p=await N.checkPermissions();return p.display=="granted"?"on":p.display=="denied"?"blocked":"off"}
+ if(!pushSupported())return "unsupported";
+ if(Notification.permission=="denied")return "blocked";
+ const reg=await swReg(),sub=reg&&await reg.pushManager.getSubscription();
+ return sub&&Notification.permission=="granted"?"on":"off"}
+async function updateAlertsCard(){const el=$("alerts");if(!el)return;const s=await alertsState().catch(()=>"off"),n=!!LN();alertsOn=s=="on";if(!$("alerts"))return;
+ const txt={on:n?"🔔 <b>Alarms are on.</b> Reminders ring on this phone at their due time, even when the app is closed.":"🔔 <b>Alerts are on for this device.</b> You'll get a notification when a reminder is due, even when the app is closed.",
+  off:n?"🔕 Turn on alarms so reminders ring on this phone at their due time.":"🔕 Turn on alerts to get a notification on this device when a reminder is due.",
+  blocked:n?"🚫 Notifications are blocked. Allow them in Android Settings → Apps → Property Tracker → Notifications.":"🚫 Notifications are blocked for this site. Allow them in the browser's site settings, then reload.",
+  unsupported:esc(pushHelp())}[s];
+ el.innerHTML=`<div>${txt}</div><div class="row wrap" style="margin-top:8px">${s=="off"||(s=="blocked"&&n)?`<button class="btn p" onclick="enableAlerts()">Turn on</button>`:""}${s=="on"?`<button class="btn" onclick="testAlert()">Send test</button>${n?"":`<button class="btn" onclick="disableAlerts()">Turn off</button>`}`:""}</div>`}
+async function enableAlerts(){try{const N=LN();
+ if(N){let p=await N.checkPermissions();if(p.display!="granted")p=await N.requestPermissions();
+  if(p.display!="granted")toast("Notifications are blocked. Allow them for Property Tracker in Android settings.");else{await syncAlarms();toast("Reminder alarms are on")}}
+ else{if(!pushSupported())return alert(pushHelp());
+  if(await Notification.requestPermission()!="granted"){toast("Notifications were not allowed");return updateAlertsCard()}
+  const {public_key}=await api("get_push_config"),key=b64uBytes(public_key);
+  await navigator.serviceWorker.register("/property-tracker-sw.js",{scope:"/property-tracker"});const reg=await navigator.serviceWorker.ready;
+  let sub=await reg.pushManager.getSubscription();
+  if(sub&&!sameKey(sub.options.applicationServerKey,key)){await sub.unsubscribe();sub=null} // server keys changed
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+  await api("save_push_subscription",{subscription:sub.toJSON(),user_agent:navigator.userAgent});toast("Reminder alerts are on for this device")}
+ }catch(e){console.error(e);toast("Could not turn on alerts: "+(e.message||e))}
+ updateAlertsCard()}
+async function disableAlerts(){try{const reg=await swReg(),sub=reg&&await reg.pushManager.getSubscription();
+ if(sub){await api("delete_push_subscription",{endpoint:sub.endpoint});await sub.unsubscribe()}toast("Alerts are off for this device")}catch(e){}updateAlertsCard()}
+async function testAlert(){const N=LN();
+ if(N){await N.schedule({notifications:[{id:999999,title:"🔔 Property Tracker",body:"Reminder alarms are working on this phone.",schedule:{at:new Date(Date.now()+3000),allowWhileIdle:true},channelId:"reminders"}]});return toast("Test alarm in 3 seconds…")}
+ const r=await api("send_test_push");
+ toast(r.sent?"Test alert sent. It should appear in a moment.":r.removed?"This device's alert registration expired. Turn alerts on again.":"Could not send the test alert. See Error Log in Desk.");if(r.removed)updateAlertsCard()}
+// Android: (re)schedule a native alarm for every open reminder. Called after data loads or reminders change.
+async function syncAlarms(){const N=LN();if(!N)return;try{
+ if((await N.checkPermissions()).display!="granted")return;
+ if(!chanMade){await N.createChannel({id:"reminders",name:"Reminders",description:"Property reminder alarms",importance:5,visibility:1,vibration:true});chanMade=true}
+ const pend=((await N.getPending()).notifications||[]).filter(n=>n.id!=999999);if(pend.length)await N.cancel({notifications:pend.map(n=>({id:n.id}))});
+ const now=Date.now(),list=db.rem.filter(r=>!r.done&&new Date(r.due).getTime()>now+1000).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,60)
+  .map(r=>({id:nid(r.k),title:"⏰ Reminder",body:r.t+(r.p?" · "+r.p:""),schedule:{at:new Date(r.due),allowWhileIdle:true},channelId:"reminders",autoCancel:true,extra:{url:remUrl(r)}}));
+ if(list.length)await N.schedule({notifications:list})}catch(e){console.error("alarms",e)}}
+// After loading: keep this browser's push registration current on the server, or the phone's alarms in sync.
+async function refreshAlerts(){try{if(LN())return syncAlarms();if(alertsRefreshed||!pushSupported()||Notification.permission!="granted")return;alertsRefreshed=true;
+ const reg=await swReg(),sub=reg&&await reg.pushManager.getSubscription();alertsOn=!!sub;
+ if(sub)await api("save_push_subscription",{subscription:sub.toJSON(),user_agent:navigator.userAgent})}catch(e){}}
+// Tapping a notification opens the reminder's property (or the Reminders screen).
+function openHash(h){if(!h)return;if(h=="#rem"){if(st().s)history.go(-st().d);setTimeout(()=>nav("rem"),50)}else route(h)}
+try{const N=LN();if(N)N.addListener("localNotificationActionPerformed",a=>{const u=a&&a.notification&&a.notification.extra&&a.notification.extra.url;if(u)openHash(new URL(u,location.origin).hash)})}catch(e){}
+if("serviceWorker" in navigator)navigator.serviceWorker.addEventListener("message",e=>{if(e.data&&e.data.type=="pt-open")openHash(e.data.hash)});
 function rem(){const rs=[...db.rem].sort((a,b)=>a.due.localeCompare(b.due));
- return `<h1>Reminders</h1><div class="card"><label>Reminder</label><input id="rt" placeholder="Call owner, check EC…"><div class="row"><div><label>Due</label><input id="rd" type="datetime-local"></div><div><label>Property</label><select id="rp"><option value="">—</option>${db.props.map(p=>`<option>${p.id}</option>`).join("")}</select></div></div><button class="btn p" onclick="addRem()">Add reminder</button></div><h2>Upcoming</h2>
+ return `<h1>Reminders</h1><div class="card" id="alerts" style="margin-bottom:10px">…</div><div class="card"><label>Reminder</label><input id="rt" placeholder="Call owner, check EC…"><div class="row"><div><label>Due</label><input id="rd" type="datetime-local"></div><div><label>Property</label><select id="rp"><option value="">—</option>${db.props.map(p=>`<option>${p.id}</option>`).join("")}</select></div></div><button class="btn p" onclick="addRem()">Add reminder</button></div><h2>Upcoming</h2>
  ${rs.map(r=>`<div class="card" style="margin-bottom:8px;opacity:${r.done?.5:1}"><label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" style="width:22px;margin:0" ${r.done?"checked":""} onchange="remDone('${r.k}',this.checked)"> ${esc(r.t)}</label><div class="mut">${dt(r.due)} ${r.p?"· "+r.p:""} ${!r.done&&new Date(r.due)<new Date()?"· <b style='color:#c0392b'>Overdue</b>":""}</div></div>`).join("")||'<div class="mut">None yet.</div>'}`}
 async function addRem(){const t=$("rt").value.trim(),d=$("rd").value;if(!t||!d)return alert("Enter text and date");
- db.rem.push(await api("add_reminder",{reminder:t,due_on:new Date(d).toISOString(),property:$("rp").value}));render();try{Notification.requestPermission()}catch(e){}}
-async function remDone(k,d){const r=await api("set_reminder_done",{name:k,done:d?1:0});db.rem=db.rem.map(x=>x.k==k?r:x);render()}
+ db.rem.push(await api("add_reminder",{reminder:t,due_on:new Date(d).toISOString(),property:$("rp").value}));render();syncAlarms();if((await alertsState().catch(()=>""))=="off")enableAlerts()}
+async function remDone(k,d){const r=await api("set_reminder_done",{name:k,done:d?1:0});db.rem=db.rem.map(x=>x.k==k?r:x);render();syncAlarms()}
 const shown=new Set();
-setInterval(()=>{try{db.rem.filter(r=>!r.done&&!shown.has(r.k)&&new Date(r.due)<=new Date()&&new Date(r.due)>new Date(Date.now()-864e5)).forEach(r=>{shown.add(r.k);if(Notification.permission=="granted")new Notification("Reminder",{body:r.t})})}catch(e){}},30000);
+setInterval(()=>{try{if(LN()||alertsOn||!("Notification" in window)||Notification.permission!="granted")return; // page-open fallback when push is off
+ db.rem.filter(r=>!r.done&&!shown.has(r.k)&&new Date(r.due)<=new Date()&&new Date(r.due)>new Date(Date.now()-864e5)).forEach(r=>{shown.add(r.k);swReg().then(reg=>reg?reg.showNotification("⏰ Reminder",{body:r.t,tag:r.k,data:{url:remUrl(r)}}):new Notification("⏰ Reminder",{body:r.t,tag:r.k}))})}catch(e){}},30000);
 function more(){const thm=getTheme();return `<h1>More</h1><h2>Appearance</h2><div class="row wrap" style="margin-bottom:14px"><button class="btn ${thm=='light'?'p':''}" onclick="setTheme('light')">☀️ Light</button><button class="btn ${thm=='dark'?'p':''}" onclick="setTheme('dark')">🌙 Dark</button><button class="btn ${thm=='auto'?'p':''}" onclick="setTheme('auto')">⚙️ System</button></div><div class="card"><b>Data & sync</b><p class="mut">Status: <b>${sync}</b> — data is stored on your Frappe site, so it is shared across devices and your team. Manage records in <a href="/app/property" style="color:var(--ac)">Desk</a>.</p>
  <div class="row wrap"><button class="btn" onclick="csv()">Export CSV (Excel)</button><button class="btn" onclick="bak()">Backup JSON</button><button class="btn" onclick="load()">↻ Refresh</button><label class="btn">Import backup<input type="file" accept=".json" hidden onchange="rest(this)"></label></div></div>
  <h2>Account</h2><div class="row wrap"><a class="btn" href="/app/property" style="text-decoration:none;text-align:center">Open Desk</a><button class="btn d" onclick="logout()">Log out</button></div>
