@@ -12,6 +12,7 @@ pricing, status pipeline, visit log, reminders, map view and side-by-side compar
 - Map of all properties (Leaflet + OpenStreetMap), nearest-first sorting
 - Compare 2–5 properties, export CSV, back up as JSON
 - Light and dark mode
+- Install on your phone as a home-screen app (PWA) or as an Android APK
 - All records are also available in Desk (`/app/property`, `/app/property-reminder`)
 
 #### DocTypes
@@ -38,6 +39,47 @@ bench build --app property_tracker
 ```
 
 Then give users the **Property Manager** role and open `/property-tracker`.
+
+### Using it on your phone
+
+The phone must be able to reach your Frappe site, ideally over **HTTPS**.
+Android blocks GPS on plain `http://` pages.
+
+#### Option 1 – Install from the browser (PWA)
+
+Open `https://<your-site>/property-tracker` in Chrome on Android, sign in, then tap
+**⋮ → Add to Home screen / Install app**. On iPhone, use Safari → **Share → Add to Home Screen**.
+The app opens full screen with its own icon and updates itself automatically.
+
+#### Option 2 – Android APK
+
+The `mobile/` folder is a [Capacitor](https://capacitorjs.com) wrapper that opens
+`/property-tracker` on your site, with GPS and camera access.
+
+1. On GitHub, open **Settings → Secrets and variables → Actions → Variables** and add
+   `SITE_URL` = `https://<your-site>`. Or enter the URL when you run the workflow manually.
+2. Open **Actions → Build APK → Run workflow**.
+3. When it finishes, download the `property-tracker-apk` artifact, unzip it, copy
+   `app-debug.apk` to the phone and install it. You'll need to allow installing from that source.
+
+The site address is built into the APK, so rebuild it if the address changes. Updates to the
+tracker itself come from the server and don't need a new APK. The APK uses its own app id, so
+it installs alongside the old standalone app. Export your old data before removing that app.
+
+To build locally (needs JDK 17 and the Android SDK):
+
+```bash
+cd mobile
+npm install
+SITE_URL=https://<your-site> npm run configure
+npx cap add android
+npx capacitor-assets generate --android
+npx cap sync android
+cd android && ./gradlew assembleDebug
+```
+
+Before building, add the location and camera permissions to `android/app/src/main/AndroidManifest.xml`
+(see `.github/workflows/build-apk.yml`).
 
 #### Moving data from the old standalone app
 

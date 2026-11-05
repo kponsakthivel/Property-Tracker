@@ -1,0 +1,65 @@
+name: Build APK
+
+# Builds an Android APK that opens /property-tracker on your Frappe site.
+# Set the site once under Settings → Secrets and variables → Actions → Variables
+# as SITE_URL (e.g. https://erp.example.com), or enter it when running manually.
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Frappe site URL, e.g. https://erp.example.com (leave empty to use the SITE_URL variable)"
+        required: false
+  push:
+    branches: [main, develop]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/build-apk.yml"
+
+jobs:
+  build:
+    if: ${{ inputs.site_url != '' || vars.SITE_URL != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      SITE_URL: ${{ inputs.site_url || vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Capacitor
+        run: npm install
+
+      - name: Point the app at the Frappe site
+        run: npm run configure
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Allow GPS and camera
+        run: |
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+          grep -c "uses-permission" android/app/src/main/AndroidManifest.xml
+
+      - name: App icon and splash screen
+        run: npx capacitor-assets generate --android
+
+      - name: Sync and build
+        run: |
+          npx cap sync android
+          cd android && chmod +x gradlew && ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: property-tracker-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk

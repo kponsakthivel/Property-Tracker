@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Property Tracker</title>
+	<script src="config.js"></script>
+</head>
+<body>
+	<script>
+		if (window.SITE_URL) location.replace(window.SITE_URL + "/property-tracker");
+		else document.body.textContent = "This build has no site configured. Rebuild with SITE_URL set.";
+	</script>
+</body>
+</html>

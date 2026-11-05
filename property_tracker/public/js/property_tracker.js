@@ -9,7 +9,7 @@ let db={props:[],rem:[]},view="home",flt="",q="",mq="",cmp=[],sync="Loading…",
 // ---- Frappe API -------------------------------------------------------------
 async function api(m,args={}){busy++;loadBar();
  try{const r=await fetch("/api/method/property_tracker.api."+m,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Accept:"application/json","X-Frappe-CSRF-Token":window.csrf_token||""},body:JSON.stringify(args)});
-  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(errMsg(j)||r.statusText||"Request failed");return j.message}
+  const j=await r.json().catch(()=>({}));if(r.status==401||(r.status==403&&(j.exc_type=="CSRFTokenError"||/(^|; )user_id=Guest/.test(document.cookie)))){location.reload();return new Promise(()=>{})}if(!r.ok)throw new Error(errMsg(j)||r.statusText||"Request failed");return j.message}
  catch(e){toast(e.message||"Request failed");throw e}finally{busy--;loadBar()}}
 function errMsg(j){try{return JSON.parse(j._server_messages).map(m=>JSON.parse(m).message).join("\n").replace(/<[^>]+>/g,"")}catch(e){return j.exc_type||""}}
 function loadBar(){const e=document.getElementById("ld");if(e)e.className=busy?"loading":""}
@@ -67,7 +67,9 @@ const shown=new Set();
 setInterval(()=>{try{db.rem.filter(r=>!r.done&&!shown.has(r.k)&&new Date(r.due)<=new Date()&&new Date(r.due)>new Date(Date.now()-864e5)).forEach(r=>{shown.add(r.k);if(Notification.permission=="granted")new Notification("Reminder",{body:r.t})})}catch(e){}},30000);
 function more(){const thm=getTheme();return `<h1>More</h1><h2>Appearance</h2><div class="row wrap" style="margin-bottom:14px"><button class="btn ${thm=='light'?'p':''}" onclick="setTheme('light')">☀️ Light</button><button class="btn ${thm=='dark'?'p':''}" onclick="setTheme('dark')">🌙 Dark</button><button class="btn ${thm=='auto'?'p':''}" onclick="setTheme('auto')">⚙️ System</button></div><div class="card"><b>Data & sync</b><p class="mut">Status: <b>${sync}</b> — data is stored on your Frappe site, so it is shared across devices and your team. Manage records in <a href="/app/property" style="color:var(--ac)">Desk</a>.</p>
  <div class="row wrap"><button class="btn" onclick="csv()">Export CSV (Excel)</button><button class="btn" onclick="bak()">Backup JSON</button><button class="btn" onclick="load()">↻ Refresh</button><label class="btn">Import backup<input type="file" accept=".json" hidden onchange="rest(this)"></label></div></div>
+ <h2>Account</h2><div class="row wrap"><a class="btn" href="/app/property" style="text-decoration:none;text-align:center">Open Desk</a><button class="btn d" onclick="logout()">Log out</button></div>
  <h2>Status colour key</h2><div class="card">${ST.map(pill).join(" ")}</div>`}
+async function logout(){if(!confirm("Log out of Property Tracker?"))return;try{await fetch("/api/method/logout",{method:"POST",credentials:"same-origin",headers:{"X-Frappe-CSRF-Token":window.csrf_token||""}})}catch(e){}location.href="/login?redirect-to=/property-tracker"}
 function setTheme(t){try{localStorage.setItem("theme",t)}catch(e){}if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t);render()}
 function dl(n,t,m){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()}
 function csv(){const h=["ID","Name","Type","Locality","District","Status","Area","Unit","Length","Width","RoadWidth","Facing","Owner","Phone","Price","PriceUnit","TotalPrice","PerCent","PerSqft","Lat","Lng","Map","Notes"];

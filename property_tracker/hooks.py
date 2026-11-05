@@ -11,6 +11,9 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
+# Serves /property-tracker.webmanifest and /property-tracker-sw.js (installable web app)
+page_renderer = ["property_tracker.pwa.PWARenderer"]
+
 add_to_apps_screen = [
 	{
 		"name": "property_tracker",
