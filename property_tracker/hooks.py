@@ -11,15 +11,15 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "property_tracker",
-# 		"logo": "/assets/property_tracker/logo.png",
-# 		"title": "Property Tracker",
-# 		"route": "/property_tracker",
-# 		"has_permission": "property_tracker.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "property_tracker",
+		"logo": "/assets/property_tracker/images/logo.svg",
+		"title": "Property Tracker",
+		"route": "/property-tracker",
+		"has_permission": "property_tracker.api.check_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -86,7 +86,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "property_tracker.install.before_install"
-# after_install = "property_tracker.install.after_install"
+after_install = "property_tracker.install.after_install"
 
 # Uninstallation
 # ------------
@@ -148,6 +148,14 @@ app_license = "mit"
 
 # Scheduled Tasks
 # ---------------
+
+scheduler_events = {
+	"cron": {
+		"*/5 * * * *": [
+			"property_tracker.property_tracker.doctype.property_reminder.property_reminder.send_due_reminders"
+		],
+	},
+}
 
 # scheduler_events = {
 # 	"all": [

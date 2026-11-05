@@ -1,0 +1,329 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:P{####}",
+ "creation": "2026-11-05 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "site_title",
+  "property_type",
+  "status",
+  "column_break_main",
+  "locality",
+  "district",
+  "rating",
+  "section_location",
+  "latitude",
+  "column_break_loc",
+  "longitude",
+  "section_dimensions",
+  "area",
+  "area_unit",
+  "area_sqft",
+  "column_break_dim",
+  "length",
+  "width",
+  "road_width",
+  "facing",
+  "section_owner",
+  "owner_name",
+  "column_break_owner",
+  "phone",
+  "section_pricing",
+  "expected_price",
+  "price_unit",
+  "negotiated_price",
+  "column_break_price",
+  "total_price",
+  "price_per_cent",
+  "price_per_sqft",
+  "section_notes",
+  "notes",
+  "section_photos",
+  "photos",
+  "section_visits",
+  "visits",
+  "section_history",
+  "status_history"
+ ],
+ "fields": [
+  {
+   "fieldname": "site_title",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Site Title"
+  },
+  {
+   "default": "Vacant Land",
+   "fieldname": "property_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Property Type",
+   "options": "Vacant Land\nAgricultural Land\nResidential Land\nHouse\nApartment\nCommercial Property\nIndustrial Property\nFarm Property\nOther"
+  },
+  {
+   "default": "Visited",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "New\nVisited\nShortlisted\nFollow-up\nNegotiating\nRevisit Required\nDocument Verification\nFinal Discussion\nPurchased\nRejected\nOn Hold",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "locality",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Locality / Village"
+  },
+  {
+   "fieldname": "district",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "District"
+  },
+  {
+   "fieldname": "rating",
+   "fieldtype": "Select",
+   "label": "Rating",
+   "options": "\n1\n2\n3\n4\n5"
+  },
+  {
+   "fieldname": "section_location",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "column_break_loc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "section_dimensions",
+   "fieldtype": "Section Break",
+   "label": "Dimensions"
+  },
+  {
+   "fieldname": "area",
+   "fieldtype": "Float",
+   "label": "Area"
+  },
+  {
+   "default": "Sq.ft",
+   "fieldname": "area_unit",
+   "fieldtype": "Select",
+   "label": "Area Unit",
+   "options": "Sq.ft\nCent\nAcre\nGround\nSq.m"
+  },
+  {
+   "fieldname": "area_sqft",
+   "fieldtype": "Float",
+   "label": "Area (Sq.ft)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_dim",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "length",
+   "fieldtype": "Float",
+   "label": "Length"
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Float",
+   "label": "Width"
+  },
+  {
+   "fieldname": "road_width",
+   "fieldtype": "Float",
+   "label": "Road Width"
+  },
+  {
+   "fieldname": "facing",
+   "fieldtype": "Select",
+   "label": "Facing",
+   "options": "\nNorth\nSouth\nEast\nWest\nNorth East\nNorth West\nSouth East\nSouth West"
+  },
+  {
+   "fieldname": "section_owner",
+   "fieldtype": "Section Break",
+   "label": "Owner"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "label": "Owner Name"
+  },
+  {
+   "fieldname": "column_break_owner",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "section_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "expected_price",
+   "fieldtype": "Currency",
+   "label": "Expected Price",
+   "options": "INR"
+  },
+  {
+   "default": "Total",
+   "fieldname": "price_unit",
+   "fieldtype": "Select",
+   "label": "Price Unit",
+   "options": "Total\nPer Cent\nPer Sq.ft\nPer Acre\nPer Ground"
+  },
+  {
+   "fieldname": "negotiated_price",
+   "fieldtype": "Currency",
+   "label": "Negotiated Total",
+   "options": "INR"
+  },
+  {
+   "fieldname": "column_break_price",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Price",
+   "options": "INR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "price_per_cent",
+   "fieldtype": "Currency",
+   "label": "Price per Cent",
+   "options": "INR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "price_per_sqft",
+   "fieldtype": "Currency",
+   "label": "Price per Sq.ft",
+   "options": "INR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "section_photos",
+   "fieldtype": "Section Break",
+   "label": "Photos"
+  },
+  {
+   "fieldname": "photos",
+   "fieldtype": "Table",
+   "label": "Photos",
+   "options": "Property Photo"
+  },
+  {
+   "fieldname": "section_visits",
+   "fieldtype": "Section Break",
+   "label": "Visits"
+  },
+  {
+   "fieldname": "visits",
+   "fieldtype": "Table",
+   "label": "Visits",
+   "options": "Property Visit"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_history",
+   "fieldtype": "Section Break",
+   "label": "Status History"
+  },
+  {
+   "fieldname": "status_history",
+   "fieldtype": "Table",
+   "label": "Status History",
+   "options": "Property Status Log",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-05 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Property Tracker",
+ "name": "Property",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Property Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "site_title,locality,owner_name",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "site_title",
+ "track_changes": 1
+}
