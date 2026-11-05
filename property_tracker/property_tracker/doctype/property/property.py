@@ -18,13 +18,18 @@ class Property(Document):
 		self.track_status_change()
 
 	def set_area(self):
-		if not self.area and self.length and self.width and self.area_unit == "Sq.ft":
-			self.area = flt(self.length) * flt(self.width)
+		"""Length, width and road width are in feet. With no area entered, use length × width
+		(sq.ft) converted to the chosen area unit."""
+		prev = self.get_doc_before_save()
+		if prev and self.area and flt(self.area) == flt(prev.area) and _area_from_feet(prev) == flt(prev.area):
+			# the area was calculated from length × width; keep it in step if those change
+			if (flt(self.length), flt(self.width), self.area_unit) != (flt(prev.length), flt(prev.width), prev.area_unit):
+				self.area = 0
 
-		if self.area:
-			self.area_sqft = flt(self.area) * AREA_UNIT_SQFT.get(self.area_unit, 1)
-		else:
-			self.area_sqft = flt(self.length) * flt(self.width)
+		if not self.area and self.length and self.width:
+			self.area = flt(flt(self.length) * flt(self.width) / AREA_UNIT_SQFT.get(self.area_unit or "Sq.ft", 1), 2)
+
+		self.area_sqft = flt(self.area) * AREA_UNIT_SQFT.get(self.area_unit, 1) if self.area else 0
 
 	def set_prices(self):
 		price = flt(self.expected_price)
@@ -59,3 +64,9 @@ class Property(Document):
 				"note": self.flags.status_note or ("Created" if not previous else ""),
 			},
 		)
+
+
+def _area_from_feet(doc):
+	if not (doc.length and doc.width):
+		return None
+	return flt(flt(doc.length) * flt(doc.width) / AREA_UNIT_SQFT.get(doc.area_unit or "Sq.ft", 1), 2)

@@ -6,7 +6,7 @@ pricing, status pipeline, visit log, reminders, map view and side-by-side compar
 #### Features
 
 - **Mobile-friendly tracker** at `/property-tracker` (also on the Frappe apps screen)
-- Save a property with GPS location, photos, owner details and price. Area and per-cent and per-sq.ft prices are worked out automatically.
+- Save a property with GPS location, address / landmark, photos, owner details and price. Length, width and road width are in feet; area (from length × width if left empty) and per-cent / per-sq.ft prices are worked out automatically.
 - Status pipeline: New, Visited, Shortlisted, Negotiating, Document Verification, Purchased, Rejected and more. Every change is logged.
 - Log revisits and set reminders, with alarms on the phone (APK), push notifications (browser / installed app) and the Desk bell
 - Map of all properties (Leaflet + OpenStreetMap), nearest-first sorting

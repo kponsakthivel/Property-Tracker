@@ -15,7 +15,7 @@ function errMsg(j){try{return JSON.parse(j._server_messages).map(m=>JSON.parse(m
 function loadBar(){const e=document.getElementById("ld");if(e)e.className=busy?"loading":""}
 function toast(t){const e=document.getElementById("toast");e.textContent=t;e.hidden=false;clearTimeout(window.tt);window.tt=setTimeout(()=>e.hidden=true,4000)}
 function put(p){const i=db.props.findIndex(x=>x.id==p.id);if(i<0)db.props.push(p);else db.props[i]=p;return p}
-async function load(){try{const d=await api("get_data");db={props:d.props,rem:d.rem};sync="Synced at "+new Date().toLocaleTimeString([],{timeStyle:"short"})}catch(e){sync="Could not reach server"}
+async function load(){try{const d=await api("get_data");db={props:d.props,rem:d.rem};prof=d.me||prof;sync="Synced at "+new Date().toLocaleTimeString([],{timeStyle:"short"})}catch(e){sync="Could not reach server"}
  const s=st().s;if(!s)render();else if(s.t=="d")redraw();
  if(startHash!==null){const h=startHash;startHash=null;route(h)}
  refreshAlerts()}
@@ -29,6 +29,38 @@ const psf=p=>sqft(p)&&total(p)?total(p)/sqft(p):0,pc=p=>psf(p)*435.6;
 const gm=p=>`https://www.google.com/maps?q=${p.lat},${p.lng}`;
 const now=()=>new Date().toISOString();const dt=s=>s?new Date(s).toLocaleString([],{dateStyle:"medium",timeStyle:"short"}):"—";
 const same=(s,d)=>s&&new Date(s).toDateString()==d.toDateString();
+// ---- UI helpers ------------------------------------------------------------------
+const I={home:"M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",list:"M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01",
+ map:"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14",bell:"M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0",
+ user:"M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z",plus:"M12 5v14M5 12h14",search:"M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3",
+ pin:"M12 22s7-7.6 7-13a7 7 0 1 0-14 0c0 5.4 7 13 7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",go:"M3 11l19-9-9 19-2-8-8-2z",
+ phone:"M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z",
+ chat:"M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5z",share:"M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
+ copy:"M9 9h11v11H9zM5 15H4V4h11v1",edit:"M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",trash:"M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6",
+ back:"M15 18l-6-6 6-6",gps:"M12 2v3M12 19v3M2 12h3M19 12h3M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z",
+ camera:"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+ compare:"M16 3h5v5M8 21H3v-5M21 3l-7 7M3 21l7-7",refresh:"M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5",download:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
+ upload:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",logout:"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+ ext:"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3",sun:"M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
+ moon:"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z",monitor:"M2 3h20v14H2zM8 21h8M12 17v4",image:"M3 3h18v18H3zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21",
+ ruler:"M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2",rupee:"M6 3h12M6 8h12M6 13l8.5 8M6 13h3a5 5 0 0 0 0-10",note:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8",
+ info:"M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01",gear:"M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"};
+const ic=(n,s=20)=>`<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${I[n]}"/></svg>`;
+const TYPES=["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"];
+const FACES=["North","South","East","West","North East","North West","South East","South West"];
+const PUNITS=["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"];
+const fmt=n=>(+n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+const dims=p=>p.len&&p.wid?`${fmt(p.len)} × ${fmt(p.wid)} ft`:"";
+const areaTxt=p=>p.area?`${fmt(p.area)} ${p.unit}`:"";
+const thumb=(p,s=84)=>p.photos&&p.photos[0]?`<img class="thumb" src="${esc(p.photos[0].d)}" alt="" loading="lazy">`:`<div class="thumb">${ic("image",28)}</div>`;
+const opts=(arr,v)=>arr.map(t=>`<option ${v==t?"selected":""}>${t}</option>`).join("");
+let prof={};
+const initials=()=>{const n=(prof.full_name||prof.email||"?").trim().split(/\s+/);return esc(((n[0]||"?")[0]+(n.length>1?n[n.length-1][0]:"")).toUpperCase())};
+const avatar=(s=36)=>prof.image?`<img class="av" src="${esc(prof.image)}" width="${s}" height="${s}" alt="" style="width:${s}px;height:${s}px">`:`<span class="av" style="width:${s}px;height:${s}px;font-size:${Math.round(s*.4)}px">${initials()}</span>`;
+const dueCount=()=>db.rem.filter(r=>!r.done&&new Date(r.due)<=new Date(Date.now()+864e5)).length;
+const head=(t,sub="")=>`<header class="top"><div><h1>${t}</h1>${sub?`<p>${sub}</p>`:""}</div><button class="avbtn" onclick="nav('more')" aria-label="Account">${avatar(36)}</button></header>`;
+const sheetHead=(t,sub="",right="")=>`<div class="shead"><button class="iconbtn" onclick="closeS()" aria-label="Back">${ic("back")}</button><div><h1>${t}</h1>${sub?`<div class="mut ell">${sub}</div>`:""}</div>${right}</div>`;
+const greet=()=>{const h=new Date().getHours();return h<12?"Good morning":h<17?"Good afternoon":"Good evening"};
 // ---- navigation: every screen is a history entry, so phone/browser Back works ----
 // state = {v: tab, f: status filter, s: open sheet {t:"d"|"e"|"a"|"c", id}, d: depth from Home}
 let startHash=location.hash;
@@ -100,33 +132,47 @@ window.addEventListener("popstate",e=>{
 // Android APK: hardware Back walks the in-app history and only leaves the app from Home.
 try{const C=window.Capacitor,A=C&&C.Plugins&&C.Plugins.App;if(A&&C.isNativePlatform&&C.isNativePlatform())A.addListener("backButton",()=>{if(st().d>0)history.back();else A.exitApp()})}catch(e){}
 function render(){
- $("nav").innerHTML=[["home","⌂","Home"],["list","☰","Properties"],["map","⌖","Map"],["rem","⏰","Reminders"],["more","⋯","More"]].map(([v,i,t])=>`<button class="${view==v?"on":""}" onclick="nav('${v}')"><b>${i}</b>${t}</button>`).join("");
+ const due=dueCount();
+ $("nav").innerHTML=`<div class="brand"><img src="/assets/property_tracker/images/logo.svg" alt="">Property Tracker</div>`
+  +[["home","home","Home"],["list","list","Properties"],["map","map","Map"],["rem","bell","Reminders"],["more","user","Account"]].map(([v,i,t])=>
+   `<button class="${view==v?"on":""}" onclick="nav('${v}')" aria-label="${t}"${view==v?' aria-current="page"':""}>${v=="more"&&prof.user?avatar(view==v?24:22):ic(i)}<span>${t}</span>${v=="rem"&&due?`<i class="badge">${due}</i>`:""}</button>`).join("")
+  +`<button class="chip" onclick="nav('more')">${avatar(32)}<div class="ell"><b class="ell">${esc(prof.full_name||"")}</b><span class="ell">${esc(prof.email||"")}</span></div></button>`;
  if(window.ptMap){window.ptMap.remove();window.ptMap=null}
- $("m").innerHTML=({home,list,map,rem,more})[view]()+`<button class="fab" onclick="edit()">+ ADD PROPERTY</button>`;
+ $("m").innerHTML=({home,list,map,rem,more})[view]()+(view=="more"?"":`<button class="fab" onclick="edit()">${ic("plus")}<span>Add property</span></button>`);
  if(view=='map')setTimeout(initMap,0);
  if(view=='rem')setTimeout(updateAlertsCard,0);
 }
-function home(){const t=new Date(),wk=new Date(Date.now()-6048e5),c=f=>db.props.filter(f).length,s=x=>c(p=>p.status==x);
- const due=db.rem.filter(r=>!r.done&&new Date(r.due)<=new Date(Date.now()+864e5)).length;
- const card=(n,l,f)=>`<div class="card stat" onclick="nav('list','${f}')"><b>${n}</b><span>${l}</span></div>`;
+function home(){const t=new Date(),wk=new Date(Date.now()-6048e5),c=f=>db.props.filter(f).length,s=x=>c(p=>p.status==x),due=dueCount();
+ const tile=(n,l,f,k)=>`<button class="card stat" style="--c:${k?col(k):"var(--ac)"}" onclick="nav('list','${f}')"><b>${n}</b><span>${l}</span></button>`;
  const pr=db.props.filter(p=>total(p)),avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
  const loc={};db.props.forEach(p=>{const k=p.locality||p.district||"Unknown";loc[k]=(loc[k]||0)+1});
- return `<h1>Site Visits</h1><div class="grid">${card(c(p=>same(p.created,t)),"Visited Today","")}${card(c(p=>new Date(p.created)>wk),"This Week","")}${card(s("Shortlisted"),"Shortlisted","Shortlisted")}${card(s("Negotiating"),"Negotiating","Negotiating")}${card(s("Document Verification"),"Document Verification","Document Verification")}${card(s("Revisit Required"),"Site Revisit","Revisit Required")}${card(s("Purchased"),"Purchased","Purchased")}${card(s("Rejected"),"Rejected","Rejected")}<div class="card stat" onclick="nav('rem')"><b>${due}</b><span>Follow-ups Due</span></div><div class="card stat"><b>${db.props.length}</b><span>Total Visited</span></div></div>
- <h2>Averages</h2><div class="card">Price: <b>${inr(avg(pr.map(total)))}</b> · per cent: <b>${inr(avg(pr.map(pc).filter(x=>x)))}</b> · per sq.ft: <b>${inr(avg(pr.map(psf).filter(x=>x)))}</b></div>
- <h2>By Location</h2><div class="card">${Object.entries(loc).map(([k,v])=>`${esc(k)}: <b>${v}</b>`).join(" · ")||'<span class="mut">No data yet</span>'}</div>
- <h2>Recent Visits</h2>${db.props.slice(-5).reverse().map(item).join("")||'<div class="card mut">Tap + ADD PROPERTY at your first site.</div>'}`}
-function item(p){return `<div class="card item" onclick="detail('${p.id}')">${p.photos?.[0]?`<img src="${p.photos[0].d}">`:'<div class="ph">🏞</div>'}<div style="flex:1;min-width:0"><b>${p.id}</b> ${esc(p.name||"")} ${pill(p.status)}<div class="mut">${esc(p.locality||"")} ${esc(p.type)} · ${p.area||"—"} ${p.unit} · ${p.facing||""}</div><div>${inr(total(p))} <span class="mut">${psf(p)?"· "+inr(pc(p))+"/cent":""}</span></div><div class="mut">Last visit ${dt(p.visits.length?p.visits.at(-1).at:p.created)}</div></div></div>`}
-function list(){let r=db.props.filter(p=>(!flt||p.status==flt)&&(!q||JSON.stringify([p.id,p.name,p.locality,p.district,p.owner,p.broker,p.type]).toLowerCase().includes(q.toLowerCase())));
- return `<h1>Properties</h1><div class="row"><input placeholder="Search location, owner, ID…" value="${esc(q)}" oninput="q=this.value;clearTimeout(window.t);window.t=setTimeout(render,300)"><select onchange="setF(this.value)"><option value="">All statuses</option>${ST.map(s=>`<option ${s==flt?"selected":""}>${s}</option>`).join("")}</select></div>
- <div class="row wrap" style="margin-bottom:10px"><button class="btn" onclick="compare()">⇄ Compare selected (${cmp.length})</button><button class="btn" onclick="near()">📍 Nearest first</button></div>
- ${r.map(p=>`<div style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" style="width:22px;margin-top:30px" ${cmp.includes(p.id)?"checked":""} onchange="tgl('${p.id}')"><div style="flex:1">${item(p)}</div></div>`).join("")||'<div class="card mut">No properties match.</div>'}`}
-function tgl(id){cmp=cmp.includes(id)?cmp.filter(x=>x!=id):[...cmp,id].slice(-5)}
+ return head(`${greet()}${prof.first_name?", "+esc(prof.first_name):""}`,`${db.props.length} propert${db.props.length==1?"y":"ies"} · ${esc(sync)}`)
+ +(due?`<button class="card alert" onclick="nav('rem')">${ic("bell",24)}<div><b>${due} follow-up${due>1?"s":""} due</b><span>Overdue or due in the next 24 hours</span></div></button>`:"")
+ +`<div class="grid">${tile(c(p=>same(p.created,t)),"Visited today","")}${tile(c(p=>new Date(p.created)>wk),"This week","")}${tile(s("Shortlisted"),"Shortlisted","Shortlisted","Shortlisted")}${tile(s("Negotiating"),"Negotiating","Negotiating","Negotiating")}${tile(s("Document Verification"),"Document check","Document Verification","Document Verification")}${tile(s("Revisit Required"),"Site revisit","Revisit Required","Revisit Required")}${tile(s("Purchased"),"Purchased","Purchased","Purchased")}${tile(s("Rejected"),"Rejected","Rejected","Rejected")}${tile(db.props.length,"Total","","")}<button class="card stat" style="--c:var(--warn)" onclick="nav('rem')"><b>${due}</b><span>Follow-ups due</span></button></div>
+ <h2>Average prices</h2><div class="card kpis"><div><span>Total</span><b>${inr(avg(pr.map(total)))}</b></div><div><span>Per cent</span><b>${inr(avg(pr.map(pc).filter(x=>x)))}</b></div><div><span>Per sq.ft</span><b>${inr(avg(pr.map(psf).filter(x=>x)))}</b></div></div>
+ <h2>By location</h2>${Object.keys(loc).length?`<div class="chips">${Object.entries(loc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span class="chip">${ic("pin",14)} ${esc(k)} <small>${v}</small></span>`).join("")}</div>`:'<div class="card mut">No data yet</div>'}
+ <h2>Recent visits</h2><div class="items">${db.props.slice(-6).reverse().map(item).join("")||`<div class="card empty">${ic("pin",32)}<div>Tap <b>Add property</b> at your first site.</div></div>`}</div>`}
+function item(p){const sub=[p.name?p.id:"",p.locality||p.type].filter(Boolean).map(esc).join(" · ");
+ return `<div class="card item" onclick="detail('${p.id}')">${thumb(p)}<div class="it"><div class="t1">${esc(p.name||p.id)}</div><div class="t2">${pill(p.status)}<span class="mut ell">${sub}</span></div>${p.addr?`<div class="mut ell">${ic("pin",13)} ${esc(p.addr)}</div>`:""}<div class="t3"><b>${inr(total(p))}</b><span class="mut">${[areaTxt(p),dims(p)].filter(Boolean).join(" · ")}</span></div></div></div>`}
+const matchQ=(p,s)=>!s||JSON.stringify([p.id,p.name,p.locality,p.district,p.addr,p.owner,p.phone,p.type]).toLowerCase().includes(s.toLowerCase());
+function listItems(){const r=db.props.filter(p=>(!flt||p.status==flt)&&matchQ(p,q)).reverse();
+ return r.map(p=>cmpMode?`<div class="selrow"><input type="checkbox" aria-label="Select ${p.id} to compare" ${cmp.includes(p.id)?"checked":""} onchange="tgl('${p.id}')">${item(p)}</div>`:item(p)).join("")||`<div class="card empty">${ic("search",28)}<div>No properties match.</div></div>`}
+function list(){const n={};db.props.forEach(p=>n[p.status]=(n[p.status]||0)+1);
+ return head("Properties",`${db.props.length} total`)
+ +`<div class="search">${ic("search",18)}<input type="search" placeholder="Search name, address, owner, ID…" value="${esc(q)}" oninput="q=this.value;$('results').innerHTML=listItems()"></div>
+ <div class="chips"><button class="chip ${!flt?"on":""}" onclick="setF('')">All <small>${db.props.length}</small></button>${ST.filter(s=>n[s]||s==flt).map(s=>`<button class="chip ${s==flt?"on":""}" style="--c:${col(s)}" onclick="setF('${s}')"><i class="dot"></i>${s} <small>${n[s]||0}</small></button>`).join("")}</div>
+ <div class="toolbar"><button class="btn sm ${cmpMode?"on":""}" onclick="cmpMode=!cmpMode;if(!cmpMode)cmp=[];render()">${ic("compare",16)} ${cmpMode?"Cancel":"Select to compare"}</button>${cmpMode?`<button class="btn sm p" id="cmpbtn" onclick="compare()">Compare (${cmp.length})</button>`:""}<button class="btn sm" onclick="near()">${ic("gps",16)} Nearest first</button></div>
+ <div id="results">${listItems()}</div>`}
+let cmpMode=false;
+function tgl(id){cmp=cmp.includes(id)?cmp.filter(x=>x!=id):[...cmp,id].slice(-5);const b=$("cmpbtn");if(b)b.textContent=`Compare (${cmp.length})`}
 function hav(a,b,c,d){if(c==null||c==="")return 1e9;const r=x=>x*Math.PI/180,h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 12742*Math.asin(Math.sqrt(h))}
 function map(){const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null);
- if(!ps.length)return `<h1>Map</h1><div class="card mut">No located properties yet.</div>`;
- const f=flt;return `<h1>Map</h1><div class="row wrap" style="margin-bottom:8px"><input placeholder="Search pins..." value="${esc(mq)}" oninput="mq=this.value; updateMap()"></div><div class="row wrap" style="margin-bottom:8px"><button class="btn ${!f?'p':''}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="btn ${f==s?'p':''}" onclick="setF('${s}')">${SI[s]} ${s}</button>`).join("")}<button class="btn" onclick="me()">My location</button></div><div class="card" style="padding:0; overflow:hidden"><div id="lmap" style="height:60vh; z-index:1;"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
+ if(!ps.length)return head("Map")+`<div class="card empty">${ic("map",32)}<div>No located properties yet. Capture GPS when you add a property.</div></div>`;
+ const f=flt;return head("Map",`${ps.length} located`)+`<div class="search">${ic("search",18)}<input type="search" placeholder="Search pins…" value="${esc(mq)}" oninput="mq=this.value;updateMap()"></div>
+ <div class="chips"><button class="chip ${!f?"on":""}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="chip ${f==s?"on":""}" style="--c:${col(s)}" onclick="setF('${s}')"><i class="dot"></i>${s}</button>`).join("")}<button class="chip" onclick="me()">${ic("gps",14)} My location</button></div>
+ <div class="card mapcard"><div id="lmap"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
 function initMap(){const m=$("lmap");if(!m)return;if(window.ptMap){window.ptMap.remove();window.ptMap=null}window.ptMap=L.map('lmap');L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(window.ptMap);updateMap(true)}
-function updateMap(fit){if(!window.ptMap)return;if(window.ptMarkers)window.ptMap.removeLayer(window.ptMarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&(!mq||JSON.stringify([p.id,p.name,p.locality,p.type]).toLowerCase().includes(mq.toLowerCase())));window.ptMarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:c,fillColor:c,fillOpacity:0.8,radius:10}).bindTooltip(`<b>${p.id}</b> ${SI[p.status]}<br>${esc(p.name||"")}`);m.on('click',()=>detail(p.id));return m})).addTo(window.ptMap);if(fit&&ps.length)window.ptMap.fitBounds(window.ptMarkers.getBounds(),{padding:[20,20]})}
+function updateMap(fit){if(!window.ptMap)return;if(window.ptMarkers)window.ptMap.removeLayer(window.ptMarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&matchQ(p,mq));window.ptMarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:"#fff",weight:2,fillColor:c,fillOpacity:.95,radius:10}).bindTooltip(`<b>${esc(p.name||p.id)}</b><br>${p.id} · ${esc(p.status)}${p.addr?`<br>${esc(p.addr)}`:""}`);m.on('click',()=>detail(p.id));return m})).addTo(window.ptMap);if(fit&&ps.length)window.ptMap.fitBounds(window.ptMarkers.getBounds(),{padding:[30,30],maxZoom:17})}
 // ---- reminder alerts -----------------------------------------------------------
 // Android app: native alarms scheduled on the phone (ring at the due time, even offline / app closed).
 // Browser or installed web app: Web Push sent by the Frappe scheduler (needs https:// or localhost).
@@ -186,87 +232,98 @@ async function refreshAlerts(){try{if(LN())return syncAlarms();if(alertsRefreshe
 function openHash(h){if(!h)return;if(h=="#rem"){if(st().s)history.go(-st().d);setTimeout(()=>nav("rem"),50)}else route(h)}
 try{const N=LN();if(N)N.addListener("localNotificationActionPerformed",a=>{const u=a&&a.notification&&a.notification.extra&&a.notification.extra.url;if(u)openHash(new URL(u,location.origin).hash)})}catch(e){}
 if("serviceWorker" in navigator)navigator.serviceWorker.addEventListener("message",e=>{if(e.data&&e.data.type=="pt-open")openHash(e.data.hash)});
-function rem(){const rs=[...db.rem].sort((a,b)=>a.due.localeCompare(b.due));
- return `<h1>Reminders</h1><div class="card" id="alerts" style="margin-bottom:10px">…</div><div class="card"><label>Reminder</label><input id="rt" placeholder="Call owner, check EC…"><div class="row"><div><label>Due</label><input id="rd" type="datetime-local"></div><div><label>Property</label><select id="rp"><option value="">—</option>${db.props.map(p=>`<option>${p.id}</option>`).join("")}</select></div></div><button class="btn p" onclick="addRem()">Add reminder</button></div><h2>Upcoming</h2>
- ${rs.map(r=>`<div class="card" style="margin-bottom:8px;opacity:${r.done?.5:1}"><label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" style="width:22px;margin:0" ${r.done?"checked":""} onchange="remDone('${r.k}',this.checked)"> ${esc(r.t)}</label><div class="mut">${dt(r.due)} ${r.p?"· "+r.p:""} ${!r.done&&new Date(r.due)<new Date()?"· <b style='color:#c0392b'>Overdue</b>":""}</div></div>`).join("")||'<div class="mut">None yet.</div>'}`}
+function rem(){const rs=[...db.rem].sort((a,b)=>a.due.localeCompare(b.due)),nowD=new Date();
+ const row=r=>{const od=!r.done&&new Date(r.due)<nowD;return `<div class="rem ${r.done?"done":""}"><input type="checkbox" aria-label="Done" ${r.done?"checked":""} onchange="remDone('${r.k}',this.checked)"><div style="flex:1;min-width:0"><div class="t">${esc(r.t)}</div><div class="mut">${ic("bell",13)} ${dt(r.due)}${od?` · <span class="overdue">Overdue</span>`:""} ${r.p?`<button class="linkchip" onclick="detail('${r.p}')">${r.p}</button>`:""}</div></div></div>`};
+ const open=rs.filter(r=>!r.done),done=rs.filter(r=>r.done).reverse();
+ return head("Reminders",`${open.length} open`)+`<div class="card" id="alerts">…</div>
+ <section class="card"><h3>${ic("plus",18)} New reminder</h3><label for="rt">What</label><input id="rt" placeholder="Call owner, check EC, revisit…"><div class="row"><div><label for="rd">When</label><input id="rd" type="datetime-local"></div><div><label for="rp">Property</label><select id="rp"><option value="">—</option>${db.props.map(p=>`<option value="${p.id}">${p.id}${p.name?" · "+esc(p.name):""}</option>`).join("")}</select></div></div><button class="btn p" style="margin-top:12px;width:100%" onclick="addRem()">Add reminder</button></section>
+ <h2>Upcoming</h2>${open.length?`<div class="card">${open.map(row).join("")}</div>`:`<div class="card empty">${ic("bell",28)}<div>No open reminders.</div></div>`}
+ ${done.length?`<h2>Done</h2><div class="card">${done.slice(0,20).map(row).join("")}</div>`:""}`}
 async function addRem(){const t=$("rt").value.trim(),d=$("rd").value;if(!t||!d)return alert("Enter text and date");
  db.rem.push(await api("add_reminder",{reminder:t,due_on:new Date(d).toISOString(),property:$("rp").value}));render();syncAlarms();if((await alertsState().catch(()=>""))=="off")enableAlerts()}
 async function remDone(k,d){const r=await api("set_reminder_done",{name:k,done:d?1:0});db.rem=db.rem.map(x=>x.k==k?r:x);render();syncAlarms()}
 const shown=new Set();
 setInterval(()=>{try{if(LN()||alertsOn||!("Notification" in window)||Notification.permission!="granted")return; // page-open fallback when push is off
  db.rem.filter(r=>!r.done&&!shown.has(r.k)&&new Date(r.due)<=new Date()&&new Date(r.due)>new Date(Date.now()-864e5)).forEach(r=>{shown.add(r.k);swReg().then(reg=>reg?reg.showNotification("⏰ Reminder",{body:r.t,tag:r.k,data:{url:remUrl(r)}}):new Notification("⏰ Reminder",{body:r.t,tag:r.k}))})}catch(e){}},30000);
-function more(){const thm=getTheme();return `<h1>More</h1><h2>Appearance</h2><div class="row wrap" style="margin-bottom:14px"><button class="btn ${thm=='light'?'p':''}" onclick="setTheme('light')">☀️ Light</button><button class="btn ${thm=='dark'?'p':''}" onclick="setTheme('dark')">🌙 Dark</button><button class="btn ${thm=='auto'?'p':''}" onclick="setTheme('auto')">⚙️ System</button></div><div class="card"><b>Data & sync</b><p class="mut">Status: <b>${sync}</b> — data is stored on your Frappe site, so it is shared across devices and your team. Manage records in <a href="/app/property" style="color:var(--ac)">Desk</a>.</p>
- <div class="row wrap"><button class="btn" onclick="csv()">Export CSV (Excel)</button><button class="btn" onclick="bak()">Backup JSON</button><button class="btn" onclick="load()">↻ Refresh</button><label class="btn">Import backup<input type="file" accept=".json" hidden onchange="rest(this)"></label></div></div>
- <h2>Account</h2><div class="row wrap"><a class="btn" href="/app/property" style="text-decoration:none;text-align:center">Open Desk</a><button class="btn d" onclick="logout()">Log out</button></div>
- <h2>Status colour key</h2><div class="card">${ST.map(pill).join(" ")}</div>`}
+function more(){const thm=getTheme(),p=prof,mine=db.props.filter(x=>x.by==p.user).length,openRem=db.rem.filter(r=>!r.done).length;
+ return head("Account")+`<section class="card"><div class="profile">${avatar(64)}<div style="min-width:0"><h3 class="ell">${esc(p.full_name||"…")}</h3><div class="mut ell">${esc(p.email||"")}</div><div class="roles">${(p.roles||[]).map(r=>`<span class="role">${esc(r)}</span>`).join("")}</div></div></div>
+ <div class="pstats"><div><b>${p.added??mine}</b><span>Added by you</span></div><div><b>${db.props.length}</b><span>All properties</span></div><div><b>${openRem}</b><span>Open reminders</span></div></div>
+ <div class="mut" style="margin-top:12px">${p.last_login?`Last sign-in ${dt(p.last_login)}`:""}${p.member_since?` · Member since ${new Date(p.member_since).toLocaleDateString([],{month:"short",year:"numeric"})}`:""}</div>
+ <div class="list" style="margin-top:8px">${p.desk?`<a href="/app/property">${ic("ext",18)} Open in Desk</a><a href="/app/user/${encodeURIComponent(p.user||"")}">${ic("gear",18)} Profile & password</a>`:`<a href="/update-password">${ic("gear",18)} Change password</a>`}<button class="d" onclick="logout()">${ic("logout",18)} Log out</button></div></section>
+ <h2>Appearance</h2><div class="seg" role="group" aria-label="Theme"><button class="${thm=='light'?'on':''}" onclick="setTheme('light')">${ic("sun",16)} Light</button><button class="${thm=='dark'?'on':''}" onclick="setTheme('dark')">${ic("moon",16)} Dark</button><button class="${thm=='auto'?'on':''}" onclick="setTheme('auto')">${ic("monitor",16)} System</button></div>
+ <h2>Data</h2><section class="card"><div class="mut">${ic("info",14)} ${esc(sync)}. Data is stored on your Frappe site and shared with your team.</div>
+ <div class="list" style="margin-top:6px"><button onclick="load()">${ic("refresh",18)} Refresh</button><button onclick="csv()">${ic("download",18)} Export CSV (Excel)</button><button onclick="bak()">${ic("download",18)} Backup JSON</button><label>${ic("upload",18)} Import backup<input type="file" accept=".json" hidden onchange="rest(this)"></label></div></section>
+ <h2>Status colours</h2><div class="card" style="display:flex;gap:6px;flex-wrap:wrap">${ST.map(pill).join("")}</div>`}
 async function logout(){if(!confirm("Log out of Property Tracker?"))return;try{await fetch("/api/method/logout",{method:"POST",credentials:"same-origin",headers:{"X-Frappe-CSRF-Token":window.csrf_token||""}})}catch(e){}location.href="/login?redirect-to=/property-tracker"}
 function setTheme(t){try{localStorage.setItem("theme",t)}catch(e){}if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t);render()}
 function dl(n,t,m){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()}
-function csv(){const h=["ID","Name","Type","Locality","District","Status","Area","Unit","Length","Width","RoadWidth","Facing","Owner","Phone","Price","PriceUnit","TotalPrice","PerCent","PerSqft","Lat","Lng","Map","Notes"];
- const r=db.props.map(p=>[p.id,p.name,p.type,p.locality,p.district,p.status,p.area,p.unit,p.len,p.wid,p.road,p.facing,p.owner,p.phone,p.price,p.punit,Math.round(total(p)),Math.round(pc(p)),Math.round(psf(p)),p.lat,p.lng,gm(p),p.notes]);
- dl("properties.csv",[h,...r].map(a=>a.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\n"),"text/csv")}
 function bak(){dl("backup.json",JSON.stringify(db),"application/json")}
 function rest(i){const f=i.files[0];if(!f)return;i.value="";f.text().then(async t=>{let d;try{d=JSON.parse(t)}catch(e){return alert("Invalid file")}
  if(!confirm(`Import ${(d.props||[]).length} properties and ${(d.rem||[]).length} reminders as new records?`))return;
  const r=await api("import_backup",{data:d});toast(`Imported ${r.properties} properties and ${r.reminders} reminders`);load()})}
+function csv(){const h=["ID","Name","Type","Address / Landmark","Locality","District","Status","Area","Unit","Length (ft)","Width (ft)","Road width (ft)","Facing","Owner","Phone","Price","PriceUnit","TotalPrice","PerCent","PerSqft","Lat","Lng","Map","Notes"];
+ const r=db.props.map(p=>[p.id,p.name,p.type,p.addr,p.locality,p.district,p.status,p.area,p.unit,p.len,p.wid,p.road,p.facing,p.owner,p.phone,p.price,p.punit,Math.round(total(p)),Math.round(pc(p)),Math.round(psf(p)),p.lat,p.lng,gm(p),p.notes]);
+ dl("properties.csv","﻿"+[h,...r].map(a=>a.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\n"),"text/csv")}
 function compare(){if(cmp.length<2)return alert("Select 2–5 properties");openS({t:"c"})}
 function drawCompare(){const ps=cmp.map(P).filter(Boolean);
- const rows=[["Location",p=>p.locality],["Type",p=>p.type],["Area",p=>p.area?p.area+" "+p.unit:""],["Length",p=>p.len],["Width",p=>p.wid],["Road width",p=>p.road],["Facing",p=>p.facing],["Price",p=>inr(total(p))],["Per cent",p=>inr(pc(p))],["Per sq.ft",p=>inr(psf(p))],["Owner",p=>p.owner],["Rating",p=>p.rating||""],["Status",p=>p.status],["Notes",p=>p.notes]];
- sheet(`<h1>Compare</h1><div class="scroll"><table><tr><th></th>${ps.map(p=>`<th>${p.id}</th>`).join("")}</tr>${rows.map(([l,f])=>{const v=ps.map(f),d=new Set(v.map(String)).size>1;return `<tr><td><b>${l}</b></td>${v.map(x=>`<td class="${d?"diff":""}">${esc(x)}</td>`).join("")}</tr>`}).join("")}</table></div><p class="mut">Highlighted rows differ between properties.</p><button class="btn" onclick="closeS()">Close</button>`)}
+ const rows=[["Name",p=>p.name],["Address / Landmark",p=>p.addr],["Location",p=>p.locality],["Type",p=>p.type],["Area",p=>areaTxt(p)],["Length (ft)",p=>p.len],["Width (ft)",p=>p.wid],["Road width (ft)",p=>p.road],["Facing",p=>p.facing],["Price",p=>inr(total(p))],["Per cent",p=>inr(pc(p))],["Per sq.ft",p=>inr(psf(p))],["Owner",p=>p.owner],["Rating",p=>p.rating?"★".repeat(p.rating):""],["Status",p=>p.status],["Notes",p=>p.notes]];
+ sheet(sheetHead("Compare",`${ps.length} properties`)+`<div class="scroll"><table><tr><th></th>${ps.map(p=>`<th>${p.id}</th>`).join("")}</tr>${rows.map(([l,f])=>{const v=ps.map(f),d=new Set(v.map(String)).size>1;return `<tr><td>${l}</td>${v.map(x=>`<td class="${d?"diff":""}">${esc(x)}</td>`).join("")}</tr>`}).join("")}</table></div><p class="mut">Highlighted rows differ between properties.</p>`)}
 function sheet(h){$("sh").innerHTML=`<div class="sheet"><div class="in">${h}</div></div>`}
 let draft;
+function propForm(p){p=p||{};const V=k=>esc(p[k]??"");
+ return `<section class="card fs"><h3>${ic("pin",18)} Location</h3>
+ <div id="gps" class="gps mut">${p.id?`Saved: ${p.lat||"—"}, ${p.lng||"—"}`:"Getting GPS…"}</div>
+ <div class="row"><div><label for="lat">Latitude</label><input id="lat" type="number" step="any" inputmode="decimal" value="${V("lat")}" oninput="stopGps()"></div><div><label for="lng">Longitude</label><input id="lng" type="number" step="any" inputmode="decimal" value="${V("lng")}" oninput="stopGps()"></div></div>
+ <button class="btn sm" type="button" style="margin-top:10px" onclick="gps()">${ic("gps",16)} ${p.id?"Capture GPS here":"Recapture GPS"}</button>
+ <label for="addr">Address / Landmark</label><textarea id="addr" rows="2" placeholder="Door no., street, near temple / school / bus stop…">${V("addr")}</textarea>
+ <div class="row"><div><label for="loc">Locality / village</label><input id="loc" value="${V("locality")}"></div><div><label for="dist">District</label><input id="dist" value="${V("district")}"></div></div></section>
+ <section class="card fs"><h3>${ic("home",18)} Basics</h3><label for="stitle">Site title / name</label><input id="stitle" value="${V("name")}" placeholder="e.g. Anna Nagar corner plot"><label for="type">Property type</label><select id="type">${opts(TYPES,p.type)}</select></section>
+ <section class="card fs"><h3>${ic("camera",18)} Photos</h3><div id="pv" class="ph2"></div></section>
+ <section class="card fs"><h3>${ic("ruler",18)} Size</h3>
+ <div class="row"><div><label for="len">Length (ft)</label><input id="len" type="number" step="any" inputmode="decimal" value="${V("len")}" oninput="sizeHint()"></div><div><label for="wid">Width (ft)</label><input id="wid" type="number" step="any" inputmode="decimal" value="${V("wid")}" oninput="sizeHint()"></div><div><label for="road">Road width (ft)</label><input id="road" type="number" step="any" inputmode="decimal" value="${V("road")}"></div></div>
+ <div class="row"><div><label for="area">Area</label><input id="area" type="number" step="any" inputmode="decimal" value="${V("area")}" placeholder="Auto from L × W" oninput="sizeHint()"></div><div><label for="unit">Unit</label><select id="unit" onchange="sizeHint()">${opts(Object.keys(U),p.unit||"Sq.ft")}</select></div></div>
+ <div id="szh" class="hint"></div>
+ <label for="face">Facing</label><select id="face"><option value="">—</option>${opts(FACES,p.facing)}</select></section>
+ <section class="card fs"><h3>${ic("user",18)} Owner</h3><div class="row"><div><label for="own">Owner name</label><input id="own" value="${V("owner")}" autocomplete="off"></div><div><label for="tel">Phone</label><input id="tel" type="tel" inputmode="tel" value="${V("phone")}"></div></div></section>
+ <section class="card fs"><h3>${ic("rupee",18)} Price</h3><div class="row"><div><label for="pr">Expected price (₹)</label><input id="pr" type="number" step="any" inputmode="decimal" value="${V("price")}" oninput="sizeHint()"></div><div><label for="pu">Price unit</label><select id="pu" onchange="sizeHint()">${opts(PUNITS,p.punit||"Total")}</select></div></div></section>
+ <section class="card fs"><h3>${ic("note",18)} Notes</h3><textarea id="nt" rows="3" placeholder="Water, EB, approvals, neighbourhood…">${V("notes")}</textarea></section>`}
+function formVals(){const v=i=>(($(i)||{}).value||"").trim();return {name:v("stitle"),type:v("type"),addr:v("addr"),locality:v("loc"),district:v("dist"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:v("unit"),len:v("len"),wid:v("wid"),road:v("road"),facing:v("face"),owner:v("own"),phone:v("tel"),price:v("pr"),punit:v("pu"),notes:v("nt"),photos:draft.photos}}
+// Live summary: area from length × width (feet), conversions and the total price.
+function sizeHint(){const e=$("szh");if(!e)return;const f=formVals(),x={...f,len:+f.len||0,wid:+f.wid||0,price:+f.price||0};
+ const auto=!(+f.area)&&x.len&&x.wid;x.area=+f.area||(auto?x.len*x.wid/(U[f.unit]||1):0);const s=sqft(x);
+ e.innerHTML=s?`${auto?`${fmt(x.len)} × ${fmt(x.wid)} ft = `:""}<b>${fmt(Math.round(s))} sq.ft</b> · ${fmt(s/435.6)} cent${s>=43560?` · ${fmt(s/43560)} acre`:""}${total(x)?` · total <b>${inr(total(x))}</b>`:""}`:""}
+function drawPh(){const e=$("pv");if(!e)return;e.innerHTML=draft.photos.map((x,i)=>`<div class="phw"><img src="${esc(x.d)}" alt=""><button type="button" class="phx" onclick="rmPh(${i})" aria-label="Remove photo">×</button></div>`).join("")+`<label class="addph">${ic("camera",24)}<span>Add photo</span><input id="ph" type="file" accept="image/*" capture="environment" multiple hidden onchange="photos(this)"></label>`}
+function rmPh(i){draft.photos.splice(i,1);drawPh()}
 function edit(){openS({t:"a"})}
 function drawAdd(){draft={photos:[],lat:"",lng:""};
- sheet(`<h1>Quick add</h1><div class="card"><div id="gps" class="mut">Getting GPS…</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" oninput="stopGps()"></div><div><label>Longitude</label><input id="lng" type="number" step="any" oninput="stopGps()"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
- <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option>${t}</option>`).join("")}</select>
- <label>Site Title / Name</label><input id="stitle" placeholder="e.g. Anna Nagar Corner Plot"><label>Locality / village</label><input id="loc"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2"></div>
- <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal"></div><div><label>Unit</label><select id="unit">${Object.keys(U).map(u=>`<option>${u}</option>`).join("")}</select></div></div>
- <div class="row"><div><label>Length</label><input id="len" type="number" inputmode="decimal"></div><div><label>Width</label><input id="wid" type="number" inputmode="decimal"></div><div><label>Road width</label><input id="road" type="number" inputmode="decimal"></div></div>
- <label>Facing</label><select id="face"><option value="">—</option>${["North","South","East","West","North East","North West","South East","South West"].map(t=>`<option>${t}</option>`).join("")}</select>
- <div class="row"><div><label>Owner</label><input id="own"></div><div><label>Phone</label><input id="tel" type="tel"></div></div>
- <div class="row"><div><label>Expected price</label><input id="pr" type="number" inputmode="decimal"></div><div><label>Price unit</label><select id="pu">${["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"].map(t=>`<option>${t}</option>`).join("")}</select></div></div>
- <label>Notes</label><textarea id="nt" rows="3"></textarea></div>
- <div class="row" style="margin-top:12px"><button class="btn" onclick="closeS()">Cancel</button><button class="btn p" onclick="saveP()">SAVE</button></div>`);gps()}
-function photos(i){[...i.files].forEach(f=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);const d=c.toDataURL("image/jpeg",.6);draft.photos.push({d,at:f.lastModified?new Date(f.lastModified).toISOString():now()});$("pv").innerHTML+=`<img src="${d}">`};im.src=u})}
-async function saveP(){if(busy)return;stopGps();const v=i=>$(i).value.trim();
- const p={name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:$("unit").value,len:v("len"),wid:v("wid"),road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:v("pr"),punit:$("pu").value,notes:v("nt"),photos:draft.photos,status:"Visited"};
- put(await api("save_property",{data:p}));closeS()}
+ sheet(sheetHead("Add property","GPS is captured automatically")+propForm()+`<div class="savebar"><button class="btn" onclick="closeS()">Cancel</button><button class="btn p" onclick="saveP()">Save property</button></div>`);drawPh();sizeHint();gps()}
+function photos(i){[...i.files].forEach(f=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);draft.photos.push({d:c.toDataURL("image/jpeg",.6),at:f.lastModified?new Date(f.lastModified).toISOString():now()});URL.revokeObjectURL(u);drawPh()};im.src=u})}
+async function saveP(){if(busy)return;stopGps();put(await api("save_property",{data:{...formVals(),status:"Visited"}}));toast("Property saved");closeS()}
 function editP(id){if(P(id))openS({t:"e",id})}
 function drawEdit(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.lat,lng:p.lng};
- const typOpts=["Vacant Land","Agricultural Land","Residential Land","House","Apartment","Commercial Property","Industrial Property","Farm Property","Other"].map(t=>`<option ${p.type==t?"selected":""}>${t}</option>`).join("");
- const unitOpts=Object.keys(U).map(u=>`<option ${p.unit==u?"selected":""}>${u}</option>`).join("");
- const faceOpts=["North","South","East","West","North East","North West","South East","South West"].map(t=>`<option ${p.facing==t?"selected":""}>${t}</option>`).join("");
- const puOpts=["Total","Per Cent","Per Sq.ft","Per Acre","Per Ground"].map(t=>`<option ${p.punit==t?"selected":""}>${t}</option>`).join("");
- const photoPreview=p.photos.map(x=>`<img src="${x.d}">`).join("");
- sheet(`<button class="btn" onclick="history.back()">← Back</button><h1>Edit ${p.id}</h1>
- <div class="card"><div id="gps" class="mut">Coordinates: ${p.lat||"—"}, ${p.lng||"—"}</div><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="any" value="${esc(p.lat)}" oninput="stopGps()"></div><div><label>Longitude</label><input id="lng" type="number" step="any" value="${esc(p.lng)}" oninput="stopGps()"></div></div><button class="btn" onclick="gps()">↻ Recapture GPS</button></div>
- <div class="card" style="margin-top:10px"><label>Property type</label><select id="type">${typOpts}</select>
- <label>Site Title / Name</label><input id="stitle" value="${esc(p.name||'')}"><label>Locality / village</label><input id="loc" value="${esc(p.locality)}"><label>Photos</label><input id="ph" type="file" accept="image/*" capture="environment" multiple onchange="photos(this)"><div id="pv" class="ph2">${photoPreview}</div>
- <div class="row"><div><label>Area</label><input id="area" type="number" step="any" inputmode="decimal" value="${esc(p.area)}"></div><div><label>Unit</label><select id="unit">${unitOpts}</select></div></div>
- <div class="row"><div><label>Length</label><input id="len" type="number" inputmode="decimal" value="${esc(p.len)}"></div><div><label>Width</label><input id="wid" type="number" inputmode="decimal" value="${esc(p.wid)}"></div><div><label>Road width</label><input id="road" type="number" inputmode="decimal" value="${esc(p.road)}"></div></div>
- <label>Facing</label><select id="face"><option value="">—</option>${faceOpts}</select>
- <div class="row"><div><label>Owner</label><input id="own" value="${esc(p.owner)}"></div><div><label>Phone</label><input id="tel" type="tel" value="${esc(p.phone)}"></div></div>
- <div class="row"><div><label>Expected price</label><input id="pr" type="number" inputmode="decimal" value="${esc(p.price)}"></div><div><label>Price unit</label><select id="pu">${puOpts}</select></div></div>
- <label>Notes</label><textarea id="nt" rows="3">${esc(p.notes)}</textarea></div>
- <div class="row" style="margin-top:12px"><button class="btn" onclick="history.back()">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">SAVE CHANGES</button></div>`)}
-async function saveEdit(id){if(busy||!P(id))return;stopGps();const v=i=>$(i).value.trim();
- const p={name:v("stitle"),type:v("type"),locality:v("loc"),lat:v("lat"),lng:v("lng"),area:v("area"),unit:$("unit").value,len:v("len"),wid:v("wid"),road:v("road"),facing:$("face").value,owner:v("own"),phone:v("tel"),price:v("pr"),punit:$("pu").value,notes:v("nt"),photos:draft.photos};
- put(await api("save_property",{name:id,data:p}));history.back()}
+ sheet(sheetHead(`Edit ${p.id}`,esc(p.name||""))+propForm(p)+`<div class="savebar"><button class="btn" onclick="history.back()">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">Save changes</button></div>`);drawPh();sizeHint()}
+async function saveEdit(id){if(busy||!P(id))return;stopGps();put(await api("save_property",{name:id,data:formVals()}));toast("Changes saved");history.back()}
 function detail(id){if(P(id))openS({t:"d",id})}
-function drawDetail(id){const p=P(id);if(!p)return;
- sheet(`<button class="btn" onclick="closeS()">← Back</button><h1>${p.id} ${pill(p.status)}</h1><div class="mut">${esc(p.locality)} · ${esc(p.type)} · added ${dt(p.created)}</div>
- <div class="ph2" style="margin:10px 0">${p.photos.map(x=>`<img src="${x.d}">`).join("")}</div>
- <div class="row wrap" style="margin-bottom:10px">${p.lat?`<button class="btn" onclick="window.open('${gm(p)}', '_blank')">Open in Maps</button><button class="btn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}', '_blank')">Navigate</button>`:""}<button class="btn" onclick="navigator.clipboard?.writeText(gm(P('${id}')))">Copy location</button><button class="btn" onclick="share('${id}')">Share</button>${p.phone?`<button class="btn" onclick="window.location.href='tel:${esc(p.phone)}'">Call</button><button class="btn" onclick="window.open('https://wa.me/${esc(p.phone.replace(/\D/g,""))}', '_blank')">WhatsApp</button>`:""}</div>
- <div class="card"><table><tr><td>Area</td><td>${p.area||"—"} ${p.unit} (${Math.round(sqft(p))} sq.ft)</td></tr><tr><td>Size</td><td>${p.len||"—"} × ${p.wid||"—"} · road ${p.road||"—"} · ${p.facing||"—"}</td></tr><tr><td>Price</td><td>${p.price||"—"} ${p.punit} → <b>${inr(total(p))}</b></td></tr><tr><td>Per cent / sq.ft</td><td>${inr(pc(p))} / ${inr(psf(p))}</td></tr><tr><td>Owner</td><td>${esc(p.owner)} ${esc(p.phone)}</td></tr><tr><td>Notes</td><td>${esc(p.notes)}</td></tr></table></div>
- <h2>Negotiated price & rating</h2><div class="row"><input id="neg" type="number" placeholder="Negotiated total ₹" value="${p.neg||""}"><select id="rt2"><option value="">Rating</option>${[1,2,3,4,5].map(n=>`<option ${p.rating==n?"selected":""}>${n}</option>`).join("")}</select><button class="btn" onclick="deal('${id}')">Save</button></div>
- <h2>Change status</h2><div class="row"><select id="ns">${ST.map(s=>`<option ${s==p.status?"selected":""}>${s}</option>`).join("")}</select><input id="sn" placeholder="Note"><button class="btn p" onclick="setS('${id}')">Update</button></div>
- <div class="mut">${p.history.map(h=>`${dt(h.at)}: ${h.from||"—"} → ${h.to} ${esc(h.note||"")}`).join("<br>")}</div>
- <h2>Visits (${p.visits.length})</h2><textarea id="vn" rows="2" placeholder="What was discussed, new price, follow-up…"></textarea><button class="btn" onclick="visit('${id}')">Log new visit</button>
- <div class="mut" style="margin-top:8px">${p.visits.map(v=>`<b>${dt(v.at)}</b> ${esc(v.note)}`).join("<br>")}</div>
- <h2></h2><div class="row wrap"><button class="btn" onclick="editP('${id}')">✏️ Edit Details</button><button class="btn d" onclick="delP('${id}')">Delete property</button></div>`)}
+function drawDetail(id){const p=P(id);if(!p)return;const ph=p.photos||[];
+ const fact=(l,v,s="")=>`<div><span>${l}</span><b>${v||"—"}</b>${s?`<small>${s}</small>`:""}</div>`;
+ const act=(icn,l,on)=>`<button class="act" onclick="${on}">${ic(icn)}${l}</button>`;
+ sheet(sheetHead(`<span class="pid">${p.id}</span> ${esc(p.name||"")}`,esc([p.type,p.locality].filter(Boolean).join(" · ")),`<button class="iconbtn" onclick="editP('${id}')" aria-label="Edit">${ic("edit")}</button>`)
+ +(ph.length?`<div class="gallery">${ph.map(x=>`<img class="${ph.length==1?"one":""}" src="${esc(x.d)}" alt="" loading="lazy">`).join("")}</div>`:`<div class="hero-ph">${ic("image",40)}</div>`)
+ +`<div class="meta">${pill(p.status)}<span class="mut">Added ${dt(p.created)}</span>${p.rating?`<span class="mut">· ${"★".repeat(p.rating)}</span>`:""}</div>
+ ${p.addr?`<div class="addr">${ic("pin",16)}<span>${esc(p.addr)}${p.locality?`, ${esc(p.locality)}`:""}${p.district?`, ${esc(p.district)}`:""}</span></div>`:""}
+ <div class="actions">${p.lat?act("map","Maps",`window.open('${gm(p)}','_blank')`)+act("go","Navigate",`window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}','_blank')`):""}${p.phone?act("phone","Call",`window.location.href='tel:${esc(p.phone)}'`)+act("chat","WhatsApp",`window.open('https://wa.me/${esc(p.phone.replace(/\D/g,""))}','_blank')`):""}${act("share","Share",`share('${id}')`)}${p.lat?act("copy","Copy pin",`navigator.clipboard&&navigator.clipboard.writeText(gm(P('${id}'))).then(()=>toast('Location copied'))`):""}</div>
+ <div class="facts">${fact("Area",areaTxt(p),sqft(p)?`${fmt(Math.round(sqft(p)))} sq.ft · ${fmt(sqft(p)/435.6)} cent`:"")}${fact("Length × width",dims(p))}${fact("Road width",p.road?`${fmt(p.road)} ft`:"")}${fact("Facing",esc(p.facing))}${fact("Price",inr(total(p)),p.price&&p.punit!="Total"?`${inr(p.price)} ${p.punit.toLowerCase()}`:"")}${fact("Per cent",inr(pc(p)),psf(p)?`${inr(psf(p))} per sq.ft`:"")}</div>
+ ${p.owner||p.phone?`<h2>Owner</h2><div class="card"><b>${esc(p.owner||"—")}</b>${p.phone?` <span class="mut">· ${esc(p.phone)}</span>`:""}</div>`:""}
+ ${p.notes?`<h2>Notes</h2><div class="card" style="white-space:pre-wrap">${esc(p.notes)}</div>`:""}
+ <h2>Deal</h2><section class="card"><div class="row"><div><label for="neg">Negotiated total (₹)</label><input id="neg" type="number" inputmode="decimal" value="${p.neg||""}"></div><div><label for="rt2">Rating</label><select id="rt2"><option value="">—</option>${[1,2,3,4,5].map(n=>`<option value="${n}" ${p.rating==n?"selected":""}>${"★".repeat(n)}</option>`).join("")}</select></div></div><button class="btn" style="margin-top:10px" onclick="deal('${id}')">Save deal</button></section>
+ <h2>Status</h2><section class="card"><div class="row"><select id="ns" aria-label="New status">${opts(ST,p.status)}</select><button class="btn p" style="flex:none" onclick="setS('${id}')">Update</button></div><input id="sn" placeholder="Note (optional)" style="margin-top:8px">
+ <ul class="tl">${[...p.history].reverse().map(h=>`<li><time>${dt(h.at)}</time>${h.from?`${esc(h.from)} → `:""}<b>${esc(h.to)}</b>${h.note?` · ${esc(h.note)}`:""}</li>`).join("")}</ul></section>
+ <h2>Visits (${p.visits.length})</h2><section class="card"><textarea id="vn" rows="2" placeholder="What was discussed, new price, follow-up…"></textarea><button class="btn" style="margin-top:8px" onclick="visit('${id}')">${ic("plus",16)} Log visit</button>
+ ${p.visits.length?`<ul class="tl">${[...p.visits].reverse().map(v=>`<li><time>${dt(v.at)}</time>${esc(v.note)}</li>`).join("")}</ul>`:""}</section>
+ <div class="danger"><button class="btn" onclick="editP('${id}')">${ic("edit",16)} Edit details</button><button class="btn d" onclick="delP('${id}')">${ic("trash",16)} Delete</button></div>`)}
 async function setS(id){const p=P(id),to=$("ns").value;if(to!=p.status)put(await api("set_status",{name:id,status:to,note:$("sn").value}));redraw()}
 async function deal(id){put(await api("update_deal",{name:id,negotiated_price:$("neg").value,rating:$("rt2").value}));redraw()}
 async function delP(id){if(!confirm(`Delete ${id}?`))return;await api("delete_property",{name:id});db.props=db.props.filter(x=>x.id!=id);db.rem.forEach(r=>{if(r.p==id)r.p=""});cmp=cmp.filter(x=>x!=id);closeS()}
 async function visit(id){const n=$("vn").value.trim();if(!n)return;put(await api("log_visit",{name:id,note:n}));redraw()}
-function share(id){const p=P(id),t=`${p.id} · ${p.locality} ${p.type}\n${p.area||"—"} ${p.unit}, ${p.len||"—"}×${p.wid||"—"}, road ${p.road||"—"}, ${p.facing||"—"} facing\nPrice ${inr(total(p))} · ${p.status}\n${p.lat?gm(p):""}\n${p.notes||""}`;navigator.share?navigator.share({text:t}).catch(()=>{}):navigator.clipboard?.writeText(t).then(()=>alert("Summary copied (owner details excluded)"))}
+function share(id){const p=P(id),t=`${p.name?p.name+" ("+p.id+")":p.id} · ${p.type}${p.locality?" · "+p.locality:""}${p.addr?"\n"+p.addr:""}\n${[areaTxt(p),dims(p),p.road?"road "+fmt(p.road)+" ft":"",p.facing?p.facing+" facing":""].filter(Boolean).join(", ")||"—"}\nPrice ${inr(total(p))} · ${p.status}${p.lat?"\n"+gm(p):""}${p.notes?"\n"+p.notes:""}`;navigator.share?navigator.share({text:t}).catch(()=>{}):navigator.clipboard?.writeText(t).then(()=>toast("Summary copied (owner details excluded)"))}
 history.replaceState({v:"home",d:0},"",location.pathname);render();load();

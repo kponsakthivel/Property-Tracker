@@ -15,6 +15,26 @@ class IntegrationTestProperty(IntegrationTestCase):
 		self.assertEqual(doc.area, 2400)
 		self.assertEqual(doc.area_sqft, 2400)
 
+	def test_area_from_feet_in_other_unit(self):
+		doc = self.make_property(length=40, width=60, area_unit="Cent")
+		self.assertEqual(doc.area, 5.51)  # 2400 sq.ft / 435.6
+		self.assertAlmostEqual(doc.area_sqft, 5.51 * 435.6)
+
+	def test_auto_area_follows_length_and_width(self):
+		doc = self.make_property(length=40, width=60, area_unit="Sq.ft")
+		doc.length = 50
+		doc.save()
+		self.assertEqual(doc.area, 3000)
+		doc.area = 2800  # typed by hand: keep it
+		doc.save()
+		doc.width = 70
+		doc.save()
+		self.assertEqual(doc.area, 2800)
+
+	def test_address(self):
+		doc = self.make_property(address="12, Temple Street, near Govt. School")
+		self.assertEqual(frappe.db.get_value("Property", doc.name, "address"), "12, Temple Street, near Govt. School")
+
 	def test_per_cent_price(self):
 		doc = self.make_property(area=10, area_unit="Cent", expected_price=500000, price_unit="Per Cent")
 		self.assertAlmostEqual(doc.total_price, 5000000)

@@ -22,6 +22,7 @@ FIELD_MAP = {
 	"type": "property_type",
 	"locality": "locality",
 	"district": "district",
+	"addr": "address",
 	"lat": "latitude",
 	"lng": "longitude",
 	"area": "area",
@@ -78,7 +79,7 @@ def _blank_zero(value):
 
 
 def to_client(doc, photos=(), visits=(), history=()):
-	p = {"id": doc.name, "status": doc.status, "created": to_iso(doc.creation)}
+	p = {"id": doc.name, "status": doc.status, "created": to_iso(doc.creation), "by": doc.owner}
 	for key, field in FIELD_MAP.items():
 		value = doc.get(field)
 		p[key] = _blank_zero(value) if key in NUMERIC else (value or "")
@@ -182,6 +183,28 @@ def get_data():
 		],
 		"rem": [reminder_to_client(r) for r in reminders],
 		"user": frappe.session.user,
+		"me": get_profile(),
+	}
+
+
+def get_profile():
+	"""The signed-in user, for the Account screen."""
+	user = frappe.session.user
+	u = frappe.db.get_value(
+		"User", user, ["full_name", "first_name", "email", "user_image", "last_login", "creation"], as_dict=True
+	) or frappe._dict()
+	roles = frappe.get_roles(user)
+	return {
+		"user": user,
+		"full_name": u.full_name or user,
+		"first_name": u.first_name or (u.full_name or user).split(" ")[0],
+		"email": u.email or user,
+		"image": u.user_image or "",
+		"roles": [r for r in ("Administrator", "System Manager", "Property Manager") if r in roles],
+		"last_login": to_iso(u.last_login),
+		"member_since": to_iso(u.creation),
+		"added": frappe.db.count("Property", {"owner": user}),
+		"desk": frappe.db.get_value("User", user, "user_type") == "System User",
 	}
 
 

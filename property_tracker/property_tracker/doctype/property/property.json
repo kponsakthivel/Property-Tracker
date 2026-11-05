@@ -12,6 +12,7 @@
   "column_break_main",
   "locality",
   "district",
+  "address",
   "rating",
   "section_location",
   "latitude",
@@ -93,6 +94,12 @@
    "label": "District"
   },
   {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "in_global_search": 1,
+   "label": "Address / Landmark"
+  },
+  {
    "fieldname": "rating",
    "fieldtype": "Select",
    "label": "Rating",
@@ -125,6 +132,7 @@
    "label": "Dimensions"
   },
   {
+   "description": "Leave empty to work it out from length \u00d7 width",
    "fieldname": "area",
    "fieldtype": "Float",
    "label": "Area"
@@ -150,17 +158,17 @@
   {
    "fieldname": "length",
    "fieldtype": "Float",
-   "label": "Length"
+   "label": "Length (ft)"
   },
   {
    "fieldname": "width",
    "fieldtype": "Float",
-   "label": "Width"
+   "label": "Width (ft)"
   },
   {
    "fieldname": "road_width",
    "fieldtype": "Float",
-   "label": "Road Width"
+   "label": "Road Width (ft)"
   },
   {
    "fieldname": "facing",
@@ -286,7 +294,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-05 12:00:00.000000",
+ "modified": "2026-11-06 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Property Tracker",
  "name": "Property",
@@ -319,7 +327,7 @@
   }
  ],
  "row_format": "Dynamic",
- "search_fields": "site_title,locality,owner_name",
+ "search_fields": "site_title,locality,address,owner_name",
  "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
