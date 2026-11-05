@@ -9,7 +9,7 @@ pricing, status pipeline, visit log, reminders, map view and side-by-side compar
 - Save a property with GPS location, address / landmark, photos, owner details and price. Length, width and road width are in feet; area (from length × width if left empty) and per-cent / per-sq.ft prices are worked out automatically.
 - Status pipeline: New, Visited, Shortlisted, Negotiating, Document Verification, Purchased, Rejected and more. Every change is logged.
 - Log revisits and set reminders, with alarms on the phone (APK), push notifications (browser / installed app) and the Desk bell
-- Map of all properties (Leaflet + OpenStreetMap), nearest-first sorting
+- Map of all properties with Street (OpenStreetMap), Clean (CARTO), Satellite (Esri) and Terrain (OpenTopoMap) styles, pin cards, "My location", and Google **Street View** / directions links. There's also a map on each property page, and a draggable pin in the add/edit form to fine-tune GPS. No map API keys are needed.
 - Compare 2–5 properties, export CSV, back up as JSON
 - Light and dark mode
 - Install on your phone as a home-screen app (PWA) or as an Android APK

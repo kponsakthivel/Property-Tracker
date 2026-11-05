@@ -102,22 +102,23 @@ function locate({onFix,onDone,onFail,goal=20,wait=30000}){
 const accTxt=a=>a>1000?`±${(a/1000).toFixed(1)} km`:`±${Math.round(a)} m`;
 function gps(){const g=$("gps");if(!g)return;
  const show=(r,final)=>{const la=$("lat"),ln=$("lng"),st=$("gps");if(!la||!st)return stopGps();
-  la.value=r.coords.latitude.toFixed(6);ln.value=r.coords.longitude.toFixed(6);const a=r.coords.accuracy;
+  la.value=r.coords.latitude.toFixed(6);ln.value=r.coords.longitude.toFixed(6);const a=r.coords.accuracy;pickTo(r.coords.latitude,r.coords.longitude,false,a);
   st.innerHTML=final?`✔ GPS captured ${accTxt(a)} · ${dt(now())}`+(a>1000?`<br><b>Only approximate location.</b> Turn on “Precise location” for this site/app for an exact fix.`:a>50?" · weak signal, recapture in the open for better accuracy":"")
    :`Improving GPS… ${accTxt(a)} <button class="btn" style="padding:4px 10px" onclick="stopGps();gpsStop()">Use this</button>`};
  window.gpsStop=()=>{const st=$("gps");if(st&&$("lat").value)st.textContent=`✔ GPS captured · ${dt(now())}`};
  g.textContent="Getting GPS… (allow location if asked)";
  locate({goal:15,wait:30000,onFix:r=>show(r,false),onDone:r=>show(r,true),onFail:m=>{const st=$("gps");if(st)st.innerHTML=`<b style="color:#c0392b">${esc(m)}</b> You can type the coordinates instead.`}})}
 function near(){toast("Finding your location…");locate({goal:100,wait:15000,onDone:g=>{const d=p=>hav(g.coords.latitude,g.coords.longitude,p.lat,p.lng);db.props.sort((a,b)=>d(a)-d(b));render();toast("Sorted nearest first")},onFail:m=>alert(m)})}
-function me(){toast("Finding your location…");locate({goal:50,wait:15000,onDone:g=>window.open(`https://www.google.com/maps?q=${g.coords.latitude},${g.coords.longitude}`),onFail:m=>alert(m)})}
+function me(){toast("Finding your location…");locate({goal:50,wait:15000,onFix:g=>showMe(window.ptMap,g.coords,false),onDone:g=>{showMe(window.ptMap,g.coords,true);toast(`You are here (${accTxt(g.coords.accuracy)})`)},onFail:m=>alert(m)})}
 function nav(v,f=""){const s=st();view=v;flt=f;
  if(v=="home"){if(s.d>0)return history.go(-s.d);setState({v,f,d:0},true)}
  else setState({v,f,d:1},s.d>0); // Home→tab adds an entry; tab→tab replaces it, so Back always returns Home
  render()}
 function setF(f){flt=f;setState({...st(),f},true);render()}
 function openS(x){const s=st();setState({v:s.v,f:s.f,s:x,d:s.d+1});drawS(x)}
-function drawS(x){stopGps();if(!x)return;if(x.t=="d")drawDetail(x.id);else if(x.t=="e")drawEdit(x.id);else if(x.t=="a")drawAdd();else drawCompare()}
+function drawS(x){stopGps();dropSheetMaps();if(!x)return;if(x.t=="d")drawDetail(x.id);else if(x.t=="e")drawEdit(x.id);else if(x.t=="a")drawAdd();else drawCompare()}
 function redraw(){drawS(st().s)}
+function dropSheetMaps(){["ptMini","ptPick"].forEach(k=>{if(window[k]){window[k].remove();window[k]=null}})}
 function closeS(){if(st().s)history.back();else{$("sh").innerHTML="";render()}}
 function route(h){h=decodeURIComponent((h||"").replace(/^#/,""));let m;
  if(["list","map","rem","more"].includes(h))nav(h);
@@ -128,7 +129,7 @@ window.addEventListener("popstate",e=>{
  const s=e.state||{v:"home",d:0},x=s.s;view=s.v||"home";flt=s.f||"";
  if(x&&(x.t=="d"||x.t=="e")&&!P(x.id))return history.back(); // property was deleted
  if(x&&x.t=="c"&&cmp.length<2)return history.back();
- if(x)drawS(x);else{stopGps();$("sh").innerHTML="";render()}});
+ if(x)drawS(x);else{stopGps();dropSheetMaps();$("sh").innerHTML="";render()}});
 // Android APK: hardware Back walks the in-app history and only leaves the app from Home.
 try{const C=window.Capacitor,A=C&&C.Plugins&&C.Plugins.App;if(A&&C.isNativePlatform&&C.isNativePlatform())A.addListener("backButton",()=>{if(st().d>0)history.back();else A.exitApp()})}catch(e){}
 function render(){
@@ -169,10 +170,59 @@ function hav(a,b,c,d){if(c==null||c==="")return 1e9;const r=x=>x*Math.PI/180,h=M
 function map(){const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null);
  if(!ps.length)return head("Map")+`<div class="card empty">${ic("map",32)}<div>No located properties yet. Capture GPS when you add a property.</div></div>`;
  const f=flt;return head("Map",`${ps.length} located`)+`<div class="search">${ic("search",18)}<input type="search" placeholder="Search pins…" value="${esc(mq)}" oninput="mq=this.value;updateMap()"></div>
- <div class="chips"><button class="chip ${!f?"on":""}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="chip ${f==s?"on":""}" style="--c:${col(s)}" onclick="setF('${s}')"><i class="dot"></i>${s}</button>`).join("")}<button class="chip" onclick="me()">${ic("gps",14)} My location</button></div>
- <div class="card mapcard"><div id="lmap"></div></div><div class="mut" style="margin-top:8px">Tap a pin for details.</div>`}
-function initMap(){const m=$("lmap");if(!m)return;if(window.ptMap){window.ptMap.remove();window.ptMap=null}window.ptMap=L.map('lmap');L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(window.ptMap);updateMap(true)}
-function updateMap(fit){if(!window.ptMap)return;if(window.ptMarkers)window.ptMap.removeLayer(window.ptMarkers);const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&matchQ(p,mq));window.ptMarkers=L.featureGroup(ps.map(p=>{const c=col(p.status);const m=L.circleMarker([p.lat,p.lng],{color:"#fff",weight:2,fillColor:c,fillOpacity:.95,radius:10}).bindTooltip(`<b>${esc(p.name||p.id)}</b><br>${p.id} · ${esc(p.status)}${p.addr?`<br>${esc(p.addr)}`:""}`);m.on('click',()=>detail(p.id));return m})).addTo(window.ptMap);if(fit&&ps.length)window.ptMap.fitBounds(window.ptMarkers.getBounds(),{padding:[30,30],maxZoom:17})}
+ <div class="chips"><button class="chip ${!f?"on":""}" onclick="setF('')">All</button>${["Visited","Shortlisted","Negotiating","Purchased","Rejected"].map(s=>`<button class="chip ${f==s?"on":""}" style="--c:${col(s)}" onclick="setF('${s}')"><i class="dot"></i>${s}</button>`).join("")}</div>
+ ${layerSeg()}<div class="card mapcard"><div id="lmap"></div><div class="mapbtns"><button class="iconbtn" onclick="me()" aria-label="My location" title="My location">${ic("gps")}</button><button class="iconbtn" onclick="fitAll()" aria-label="Show all pins" title="Show all pins">${ic("compare")}</button></div></div><div class="mut" style="margin-top:8px">Tap a pin for details, directions or Street View.</div>`}
+
+
+// ---- maps ------------------------------------------------------------------------
+// Free base maps (no API keys): OpenStreetMap, CARTO, Esri satellite imagery and OpenTopoMap.
+const isDark=()=>{const t=document.documentElement.getAttribute("data-theme");return t?t=="dark":matchMedia("(prefers-color-scheme: dark)").matches};
+const ESRI="https://server.arcgisonline.com/ArcGIS/rest/services/";
+const LAYERS={
+ street:{name:"Street",icon:"map",tiles:()=>[["https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,className:"inv",attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'}]]},
+ clean:{name:"Clean",icon:"list",tiles:()=>[[`https://{s}.basemaps.cartocdn.com/${isDark()?"dark_all":"rastertiles/voyager"}/{z}/{x}/{y}{r}.png`,{maxZoom:20,subdomains:"abcd",attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> © <a href="https://carto.com/attributions" target="_blank">CARTO</a>'}]]},
+ sat:{name:"Satellite",icon:"image",tiles:()=>[[ESRI+"World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:20,maxNativeZoom:19,attribution:'Imagery © <a href="https://www.esri.com" target="_blank">Esri</a>, Maxar, Earthstar Geographics'}],
+  [ESRI+"Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",{maxZoom:20,maxNativeZoom:19,opacity:.85}],[ESRI+"Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:20,maxNativeZoom:19}]]},
+ topo:{name:"Terrain",icon:"ruler",tiles:()=>[["https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,subdomains:"abc",className:"inv",attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>, SRTM | © <a href="https://opentopomap.org" target="_blank">OpenTopoMap</a> (CC-BY-SA)'}]]}};
+let mapLayer=(()=>{try{return localStorage.getItem("mapLayer")||"street"}catch(e){return "street"}})();
+if(!LAYERS[mapLayer])mapLayer="street";
+const liveMaps=()=>[window.ptMap,window.ptMini,window.ptPick].filter(Boolean);
+function setBase(m){if(m._base)m.removeLayer(m._base);m._base=L.layerGroup(LAYERS[mapLayer].tiles().map(([u,o])=>L.tileLayer(u,o))).addTo(m);m.setMaxZoom(mapLayer=="topo"?17:20)}
+function setLayer(k){mapLayer=k;try{localStorage.setItem("mapLayer",k)}catch(e){}liveMaps().forEach(setBase);document.querySelectorAll(".layerseg button").forEach(b=>b.classList.toggle("on",b.dataset.k==k))}
+const layerSeg=()=>`<div class="seg layerseg" role="group" aria-label="Map style">${Object.entries(LAYERS).map(([k,l])=>`<button type="button" data-k="${k}" class="${k==mapLayer?"on":""}" onclick="setLayer('${k}')">${ic(l.icon,15)} ${l.name}</button>`).join("")}</div>`;
+function newMap(id,o={}){const m=L.map(id,{zoomControl:true,attributionControl:true,...o});m.attributionControl.setPrefix(false);setBase(m);setTimeout(()=>{if(m._mapPane&&m.getContainer().isConnected)m.invalidateSize()},250);return m} // the map may be gone if the user navigated away
+const pinIcon=(c,big)=>L.divIcon({className:"",html:`<span class="mk${big?" big":""}" style="--c:${c}"></span>`,iconSize:big?[34,34]:[28,28],iconAnchor:big?[17,34]:[14,28],popupAnchor:[0,big?-32:-26]});
+const svUrl=p=>`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}`;
+const navUrl=p=>`https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+function popup(p){return `<div class="pop">${p.photos&&p.photos[0]?`<img src="${esc(p.photos[0].d)}" alt="">`:""}<b>${esc(p.name||p.id)}</b><div class="pmeta">${pill(p.status)}<span class="mut">${p.id}</span></div>${p.addr?`<div class="mut">${esc(p.addr)}</div>`:""}<div class="pprice"><b>${inr(total(p))}</b> <span class="mut">${[areaTxt(p),dims(p)].filter(Boolean).join(" · ")}</span></div>
+ <div class="pact"><button class="btn sm p" onclick="detail('${p.id}')">Details</button><a class="btn sm" href="${navUrl(p)}" target="_blank" rel="noopener">${ic("go",14)} Go</a><a class="btn sm" href="${svUrl(p)}" target="_blank" rel="noopener">${ic("user",14)} Street View</a></div></div>`}
+// "You are here" dot with accuracy circle
+function showMe(m,c,fly){if(!m)return;const ll=[c.latitude,c.longitude];if(m._me){m._me.setLatLng(ll);m._acc.setLatLng(ll).setRadius(c.accuracy)}else{m._acc=L.circle(ll,{radius:c.accuracy,color:"#2b7cff",weight:1,fillOpacity:.12,interactive:false}).addTo(m);m._me=L.marker(ll,{icon:L.divIcon({className:"",html:'<span class="me"></span>',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false,zIndexOffset:1000}).addTo(m)}if(fly)m.flyTo(ll,Math.max(m.getZoom()||0,16),{duration:.8})}
+function initMap(){const m=$("lmap");if(!m)return;if(window.ptMap){window.ptMap.remove();window.ptMap=null}window.ptMap=newMap('lmap');window.ptMap.setView([20.6,78.9],5);updateMap(true)}
+function updateMap(fit){const M=window.ptMap;if(!M)return;if(window.ptMarkers)M.removeLayer(window.ptMarkers);
+ const ps=db.props.filter(p=>p.lat!==""&&p.lat!=null&&(!flt||p.status==flt)&&matchQ(p,mq));
+ window.ptMarkers=L.featureGroup(ps.map(p=>L.marker([p.lat,p.lng],{icon:pinIcon(col(p.status)),title:p.name||p.id,riseOnHover:true}).bindPopup(popup(p),{maxWidth:280,minWidth:230}))).addTo(M);
+ if(fit&&ps.length)M.fitBounds(window.ptMarkers.getBounds(),{padding:[40,40],maxZoom:17})}
+function fitAll(){const M=window.ptMap;if(M&&window.ptMarkers&&window.ptMarkers.getLayers().length)M.fitBounds(window.ptMarkers.getBounds(),{padding:[40,40],maxZoom:17})}
+// Property page: small map of the site
+function miniMap(p){if(window.ptMini){window.ptMini.remove();window.ptMini=null}if(!$("dmap")||!p.lat)return;
+ const m=window.ptMini=newMap("dmap",{scrollWheelZoom:false,dragging:!L.Browser.mobile,tap:false});m.setView([p.lat,p.lng],17);L.marker([p.lat,p.lng],{icon:pinIcon(col(p.status),true)}).addTo(m)}
+// Add/edit form: draggable pin to fine-tune the GPS position (or tap the map to place it)
+function pickMap(){if(window.ptPick){window.ptPick.remove();window.ptPick=null}if(!$("pmap"))return;
+ const la=parseFloat($("lat").value),ln=parseFloat($("lng").value),has=isFinite(la)&&isFinite(ln);
+ const ref=db.props.find(p=>p.lat);const m=window.ptPick=newMap("pmap",{scrollWheelZoom:false,tap:false});
+ m.setView(has?[la,ln]:ref?[ref.lat,ref.lng]:[20.6,78.9],has?18:ref?13:5);
+ if(has)pickTo(la,ln);
+ m.on("click",e=>{stopGps();pickTo(e.latlng.lat,e.latlng.lng,true);gpsMsg("📍 Pin placed on the map")})}
+function pickTo(la,ln,fromMap,acc){const m=window.ptPick;if(!m)return;
+ if(!m._pin){m._pin=L.marker([la,ln],{draggable:true,icon:pinIcon("var(--ac)",true),autoPan:true}).addTo(m);
+  m._pin.on("dragend",()=>{stopGps();const q=m._pin.getLatLng();setLL(q.lat,q.lng);gpsMsg("📍 Pin moved by hand")})}
+ else m._pin.setLatLng([la,ln]);
+ if(fromMap)setLL(la,ln);else m.setView([la,ln],Math.max(m.getZoom(),acc&&acc>200?15:18));
+ if(m._acc)m.removeLayer(m._acc);m._acc=acc?L.circle([la,ln],{radius:acc,color:"#2b7cff",weight:1,fillOpacity:.1,interactive:false}).addTo(m):null}
+function setLL(la,ln){if($("lat"))$("lat").value=la.toFixed(6);if($("lng"))$("lng").value=ln.toFixed(6)}
+function gpsMsg(t){const e=$("gps");if(e)e.textContent=t}
+function pickFromInputs(){const la=parseFloat($("lat").value),ln=parseFloat($("lng").value);if(isFinite(la)&&isFinite(ln))pickTo(la,ln)}
 // ---- reminder alerts -----------------------------------------------------------
 // Android app: native alarms scheduled on the phone (ring at the due time, even offline / app closed).
 // Browser or installed web app: Web Push sent by the Frappe scheduler (needs https:// or localhost).
@@ -273,7 +323,8 @@ let draft;
 function propForm(p){p=p||{};const V=k=>esc(p[k]??"");
  return `<section class="card fs"><h3>${ic("pin",18)} Location</h3>
  <div id="gps" class="gps mut">${p.id?`Saved: ${p.lat||"—"}, ${p.lng||"—"}`:"Getting GPS…"}</div>
- <div class="row"><div><label for="lat">Latitude</label><input id="lat" type="number" step="any" inputmode="decimal" value="${V("lat")}" oninput="stopGps()"></div><div><label for="lng">Longitude</label><input id="lng" type="number" step="any" inputmode="decimal" value="${V("lng")}" oninput="stopGps()"></div></div>
+ <div class="pmapwrap"><div id="pmap" class="pmap"></div></div><div class="mut" style="margin:6px 0 2px">Drag the pin or tap the map to adjust the position.</div>${layerSeg()}
+ <div class="row"><div><label for="lat">Latitude</label><input id="lat" type="number" step="any" inputmode="decimal" value="${V("lat")}" oninput="stopGps();pickFromInputs()"></div><div><label for="lng">Longitude</label><input id="lng" type="number" step="any" inputmode="decimal" value="${V("lng")}" oninput="stopGps();pickFromInputs()"></div></div>
  <button class="btn sm" type="button" style="margin-top:10px" onclick="gps()">${ic("gps",16)} ${p.id?"Capture GPS here":"Recapture GPS"}</button>
  <label for="addr">Address / Landmark</label><textarea id="addr" rows="2" placeholder="Door no., street, near temple / school / bus stop…">${V("addr")}</textarea>
  <div class="row"><div><label for="loc">Locality / village</label><input id="loc" value="${V("locality")}"></div><div><label for="dist">District</label><input id="dist" value="${V("district")}"></div></div></section>
@@ -296,12 +347,12 @@ function drawPh(){const e=$("pv");if(!e)return;e.innerHTML=draft.photos.map((x,i
 function rmPh(i){draft.photos.splice(i,1);drawPh()}
 function edit(){openS({t:"a"})}
 function drawAdd(){draft={photos:[],lat:"",lng:""};
- sheet(sheetHead("Add property","GPS is captured automatically")+propForm()+`<div class="savebar"><button class="btn" onclick="closeS()">Cancel</button><button class="btn p" onclick="saveP()">Save property</button></div>`);drawPh();sizeHint();gps()}
+ sheet(sheetHead("Add property","GPS is captured automatically")+propForm()+`<div class="savebar"><button class="btn" onclick="closeS()">Cancel</button><button class="btn p" onclick="saveP()">Save property</button></div>`);drawPh();sizeHint();pickMap();gps()}
 function photos(i){[...i.files].forEach(f=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);draft.photos.push({d:c.toDataURL("image/jpeg",.6),at:f.lastModified?new Date(f.lastModified).toISOString():now()});URL.revokeObjectURL(u);drawPh()};im.src=u})}
 async function saveP(){if(busy)return;stopGps();put(await api("save_property",{data:{...formVals(),status:"Visited"}}));toast("Property saved");closeS()}
 function editP(id){if(P(id))openS({t:"e",id})}
 function drawEdit(id){const p=P(id);if(!p)return;draft={photos:[...p.photos],lat:p.lat,lng:p.lng};
- sheet(sheetHead(`Edit ${p.id}`,esc(p.name||""))+propForm(p)+`<div class="savebar"><button class="btn" onclick="history.back()">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">Save changes</button></div>`);drawPh();sizeHint()}
+ sheet(sheetHead(`Edit ${p.id}`,esc(p.name||""))+propForm(p)+`<div class="savebar"><button class="btn" onclick="history.back()">Cancel</button><button class="btn p" onclick="saveEdit('${id}')">Save changes</button></div>`);drawPh();sizeHint();pickMap()}
 async function saveEdit(id){if(busy||!P(id))return;stopGps();put(await api("save_property",{name:id,data:formVals()}));toast("Changes saved");history.back()}
 function detail(id){if(P(id))openS({t:"d",id})}
 function drawDetail(id){const p=P(id);if(!p)return;const ph=p.photos||[];
@@ -311,8 +362,9 @@ function drawDetail(id){const p=P(id);if(!p)return;const ph=p.photos||[];
  +(ph.length?`<div class="gallery">${ph.map(x=>`<img class="${ph.length==1?"one":""}" src="${esc(x.d)}" alt="" loading="lazy">`).join("")}</div>`:`<div class="hero-ph">${ic("image",40)}</div>`)
  +`<div class="meta">${pill(p.status)}<span class="mut">Added ${dt(p.created)}</span>${p.rating?`<span class="mut">· ${"★".repeat(p.rating)}</span>`:""}</div>
  ${p.addr?`<div class="addr">${ic("pin",16)}<span>${esc(p.addr)}${p.locality?`, ${esc(p.locality)}`:""}${p.district?`, ${esc(p.district)}`:""}</span></div>`:""}
- <div class="actions">${p.lat?act("map","Maps",`window.open('${gm(p)}','_blank')`)+act("go","Navigate",`window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}','_blank')`):""}${p.phone?act("phone","Call",`window.location.href='tel:${esc(p.phone)}'`)+act("chat","WhatsApp",`window.open('https://wa.me/${esc(p.phone.replace(/\D/g,""))}','_blank')`):""}${act("share","Share",`share('${id}')`)}${p.lat?act("copy","Copy pin",`navigator.clipboard&&navigator.clipboard.writeText(gm(P('${id}'))).then(()=>toast('Location copied'))`):""}</div>
- <div class="facts">${fact("Area",areaTxt(p),sqft(p)?`${fmt(Math.round(sqft(p)))} sq.ft · ${fmt(sqft(p)/435.6)} cent`:"")}${fact("Length × width",dims(p))}${fact("Road width",p.road?`${fmt(p.road)} ft`:"")}${fact("Facing",esc(p.facing))}${fact("Price",inr(total(p)),p.price&&p.punit!="Total"?`${inr(p.price)} ${p.punit.toLowerCase()}`:"")}${fact("Per cent",inr(pc(p)),psf(p)?`${inr(psf(p))} per sq.ft`:"")}</div>
+ <div class="actions">${p.lat?act("map","Maps",`window.open('${gm(p)}','_blank')`)+act("user","Street View",`window.open('${svUrl(p)}','_blank')`)+act("go","Navigate",`window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}','_blank')`):""}${p.phone?act("phone","Call",`window.location.href='tel:${esc(p.phone)}'`)+act("chat","WhatsApp",`window.open('https://wa.me/${esc(p.phone.replace(/\D/g,""))}','_blank')`):""}${act("share","Share",`share('${id}')`)}${p.lat?act("copy","Copy pin",`navigator.clipboard&&navigator.clipboard.writeText(gm(P('${id}'))).then(()=>toast('Location copied'))`):""}</div>
+ ${p.lat?`<div class="card mapcard minimap"><div id="dmap"></div></div>${layerSeg()}`:""}
+ <div class="facts" style="margin-top:12px">${fact("Area",areaTxt(p),sqft(p)?`${fmt(Math.round(sqft(p)))} sq.ft · ${fmt(sqft(p)/435.6)} cent`:"")}${fact("Length × width",dims(p))}${fact("Road width",p.road?`${fmt(p.road)} ft`:"")}${fact("Facing",esc(p.facing))}${fact("Price",inr(total(p)),p.price&&p.punit!="Total"?`${inr(p.price)} ${p.punit.toLowerCase()}`:"")}${fact("Per cent",inr(pc(p)),psf(p)?`${inr(psf(p))} per sq.ft`:"")}</div>
  ${p.owner||p.phone?`<h2>Owner</h2><div class="card"><b>${esc(p.owner||"—")}</b>${p.phone?` <span class="mut">· ${esc(p.phone)}</span>`:""}</div>`:""}
  ${p.notes?`<h2>Notes</h2><div class="card" style="white-space:pre-wrap">${esc(p.notes)}</div>`:""}
  <h2>Deal</h2><section class="card"><div class="row"><div><label for="neg">Negotiated total (₹)</label><input id="neg" type="number" inputmode="decimal" value="${p.neg||""}"></div><div><label for="rt2">Rating</label><select id="rt2"><option value="">—</option>${[1,2,3,4,5].map(n=>`<option value="${n}" ${p.rating==n?"selected":""}>${"★".repeat(n)}</option>`).join("")}</select></div></div><button class="btn" style="margin-top:10px" onclick="deal('${id}')">Save deal</button></section>
@@ -320,7 +372,7 @@ function drawDetail(id){const p=P(id);if(!p)return;const ph=p.photos||[];
  <ul class="tl">${[...p.history].reverse().map(h=>`<li><time>${dt(h.at)}</time>${h.from?`${esc(h.from)} → `:""}<b>${esc(h.to)}</b>${h.note?` · ${esc(h.note)}`:""}</li>`).join("")}</ul></section>
  <h2>Visits (${p.visits.length})</h2><section class="card"><textarea id="vn" rows="2" placeholder="What was discussed, new price, follow-up…"></textarea><button class="btn" style="margin-top:8px" onclick="visit('${id}')">${ic("plus",16)} Log visit</button>
  ${p.visits.length?`<ul class="tl">${[...p.visits].reverse().map(v=>`<li><time>${dt(v.at)}</time>${esc(v.note)}</li>`).join("")}</ul>`:""}</section>
- <div class="danger"><button class="btn" onclick="editP('${id}')">${ic("edit",16)} Edit details</button><button class="btn d" onclick="delP('${id}')">${ic("trash",16)} Delete</button></div>`)}
+ <div class="danger"><button class="btn" onclick="editP('${id}')">${ic("edit",16)} Edit details</button><button class="btn d" onclick="delP('${id}')">${ic("trash",16)} Delete</button></div>`);setTimeout(()=>miniMap(p),0)}
 async function setS(id){const p=P(id),to=$("ns").value;if(to!=p.status)put(await api("set_status",{name:id,status:to,note:$("sn").value}));redraw()}
 async function deal(id){put(await api("update_deal",{name:id,negotiated_price:$("neg").value,rating:$("rt2").value}));redraw()}
 async function delP(id){if(!confirm(`Delete ${id}?`))return;await api("delete_property",{name:id});db.props=db.props.filter(x=>x.id!=id);db.rem.forEach(r=>{if(r.p==id)r.p=""});cmp=cmp.filter(x=>x!=id);closeS()}
